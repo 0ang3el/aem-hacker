@@ -1,3 +1,3 @@
 # AEM hacker scripts
 
-Scripts to access Adobe Experience Manger (AEM) webapps security.
+Scripts to test Adobe Experience Manger (AEM) webapps security.
