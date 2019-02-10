@@ -28,6 +28,7 @@ Following checks are currently implemented:
 * `Exposed DefaultGetServlet` - checks if JCR nodes, that might contain sensitive information and secrets, are exposed via DefaultGetServlet.
 * `Exposed QueryBulderJsonServlet and QueryBuilderFeedServlet` - if those servlets are exposed it might be possible to access various sensitive information and secrets. 
 * `Exposed GQLServlet` - GQLServlet is similar to QueryBuilderFeedServlet.
+* `Ability to create new JCR nodes` - checks if it's possible to create new JCR node.
 * `Exposed POSTServlet` - POSTServlet allows to create/modify/delete content in JCR. Depending on your access level, it's possible to get stored XSS or RCE. 
 * `Exposed LoginStatusServlet` - LoginStatusServlet allows to bruteforce credentials.
 * `Users with default password` - checks for admin:admin, author:author, etc.
@@ -41,7 +42,8 @@ Following checks are currently implemented:
 * `SSRF ReportingServicesServlet` - checks for SSRF via ReportingServicesServlet (CVE-2018-12809). SSRF might allow to ex-filtrate secrets or perform XSS.
 * `SSRF SitecatalystServlet` - checks for SSRF via SitecatalystServlet. SSRF might allow to get RCE with the help of aem_ssrf2rce.py, when specific AEM version and appserver is used.
 * `SSRF AutoprovisioningServlet` - checks for SSRF via AutoprovisioningServlet. SSRF might allow to get RCE with the help of aem_ssrf2rce.py, when specific AEM version and appserver is used.
-* `SSRF OpensocialProxy` - checks for SSRF via OpensocialProxy (ShindigProxy). SSRF might allow to ex-filtrate secrets or perform XSS.
+* `SSRF Opensocial Proxy` - checks for SSRF via Opensocial (Shindig) proxy. SSRF might allow to ex-filtrate secrets or perform XSS.
+* `SSRF Opensocial MakeRequest` - check for SSRF via Opensocial (Shindig) makeRequest. SSRF might allow to ex-filtrate secrets or perform XSS. You can use parameters `httpMethod`, `postData`, `headers`, `contentType` with `makeRequest`.
 * `SWF XSSes` - checks for XSSes via SWF.
 * `Deser ExternalJobServlet` - checks for vulnerable ExternalJobServlet.
 * `Exposed Webdav` - checks for access to JCR via WebDav protocol. Exposed WebDav might lead to XXE (CVE-2015-1833) or stored XSS.
