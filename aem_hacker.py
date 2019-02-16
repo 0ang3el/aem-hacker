@@ -387,7 +387,7 @@ def exposed_loginstatus_servlet(base_url, my_host, debug=False, proxy=None):
                     headers = {'Authorization': 'Basic {}'.format(base64.b64encode(creds.encode()).decode())}
                     resp = http_request(url, additional_headers=headers, proxy=proxy)
 
-                    if 'authenticated=true' in str(resp.content):
+                    if 'authenticated=true' and 'userid!=Unauthenticated' in str(resp.content):
                         f = Finding('AEM with default credentials', url,
                                     'AEM with default credentials "{0}".'.format(creds))
                         results.append(f)
