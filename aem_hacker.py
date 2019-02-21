@@ -562,6 +562,19 @@ def exposed_crxde_crx(base_url, my_host, debug=False, proxy=None):
     )
     CRX = list('{0}{1}'.format(p1, p2) for p1, p2 in CRX)
 
+    CRXSEARCH = itertools.product(
+        ('/crx/explorer/ui/search.jsp', '/crx///explorer///ui///search.jsp'),
+        ('', ';%0aa.css', ';%0aa.html', ';%0aa.js', ';%0aa.ico', ';%0aa.png', '?a.css', '?a.html', '?a.png', '?a.js', '?a.ico')
+    )
+    CRXSEARCH = list('{0}{1}'.format(p1, p2) for p1, p2 in CRXSEARCH)
+
+    CRXNAMESPACE = itertools.product(
+        ('/crx/explorer/ui/namespace_editor.jsp', '///crx/explorer///ui///namespace_editor.jsp'),
+        ('', ';%0aa.css', ';%0aa.html', ';%0aa.js', ';%0aa.ico', ';%0aa.png', '?a.css', '?a.html', '?a.png', '?a.js', '?a.ico')
+    )
+    CRXNAMESPACE = list('{0}{1}'.format(p1, p2) for p1, p2 in CRXNAMESPACE)
+
+
     PACKMGR = itertools.product(
         ('/crx/packmgr/index.jsp', '///crx///packmgr///index.jsp'),
         ('', ';%0aa.css', ';%0aa.html', ';%0aa.js', ';%0aa.ico', ';%0aa.png', '?a.css', '?a.html', '?a.png', '?a.js', '?a.ico')
@@ -569,13 +582,14 @@ def exposed_crxde_crx(base_url, my_host, debug=False, proxy=None):
     PACKMGR = list('{0}{1}'.format(p1, p2) for p1, p2 in PACKMGR)
 
     results = []
-    for path in itertools.chain(CRXDELITE, CRX, PACKMGR):
+    for path in itertools.chain(CRXDELITE, CRX, CRXSEARCH, CRXNAMESPACE, PACKMGR):
         url = normalize_url(base_url, path)
         try:
             resp = http_request(url, proxy=proxy)
 
             if resp.status_code == 200 and ('CRXDE Lite' in str(resp.content) or 'Content Explorer' in str(resp.content) or
-                                            'CRX Package Manager' in str(resp.content)):
+                                            'CRX Package Manager' in str(resp.content) or 'Search for:' in str(res.content) or
+                                            'Namespace URI' in str(resp.content)) :
                 f = Finding('CRXDE Lite/CRX', url, 'Sensitive information might be exposed. Check manually.')
 
                 results.append(f)
@@ -583,6 +597,33 @@ def exposed_crxde_crx(base_url, my_host, debug=False, proxy=None):
         except:
             if debug:
                 error('Exception while performing a check', check='exposed_crxde_crx', url=url)
+
+    return results
+
+
+@register
+def exposed_reports(base_url, my_host, debug=False, proxy=None):
+    DISKUSAGE = itertools.product(
+        ('/etc/reports/diskusage.html', '///etc/reports///diskusage.html'),
+        ('')
+    )
+    DISKUSAGE = list('{0}{1}'.format(p1,p2) for p1, p2 in DISKUSAGE)
+
+    results = []
+    for path in DISKUSAGE:
+        url = normalize_url(base_url, path)
+        try:
+            resp = http_request(url, proxy=proxy)
+
+            if resp.status_code == 200 and ('Disk Usage' in str(resp.content)):
+
+                f = Finding('Disk Usage report', url, 'Disk Usage report are exposed.')
+
+                results.append(f)
+                break
+        except:
+            if debug:
+                error('Exception while performing a check', check='exposed_reports', url=url)
 
     return results
 
