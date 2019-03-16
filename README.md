@@ -38,6 +38,7 @@ Following checks are currently implemented:
 * `Exposed AuditlogServlet` - checks if audit logs are exposed without authorization.
 * `Exposed CRXDE logs` - checks if logs are exposed without authorization via CRXDE.
 * `Exposed CRXDE and CRX` - checks for exposure of CRXDE and CRX.
+* `Exposed Reports` - checks for exposure of reports.
 * `SSRF SalesforceSecretServlet` - checks for SSRF via SalesforceSecretServlet (CVE-2018-5006). SSRF might allow to ex-filtrate secrets or perform XSS.
 * `SSRF ReportingServicesServlet` - checks for SSRF via ReportingServicesServlet (CVE-2018-12809). SSRF might allow to ex-filtrate secrets or perform XSS.
 * `SSRF SitecatalystServlet` - checks for SSRF via SitecatalystServlet. SSRF might allow to get RCE with the help of aem_ssrf2rce.py, when specific AEM version and appserver is used.
