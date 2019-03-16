@@ -30,7 +30,7 @@ Following checks are currently implemented:
 * `Exposed GQLServlet` - GQLServlet is similar to QueryBuilderFeedServlet.
 * `Ability to create new JCR nodes` - checks if it's possible to create new JCR node.
 * `Exposed POSTServlet` - POSTServlet allows to create/modify/delete content in JCR. Depending on your access level, it's possible to get stored XSS or RCE. 
-* `Exposed LoginStatusServlet` - LoginStatusServlet allows to bruteforce credentials.
+* `Exposed LoginStatusServlet, CurrentUserServlet and UserInfoServlet` - if those servlets are exposed allows it might be possible to bruteforce credentials.
 * `Users with default password` - checks for admin:admin, author:author, etc.
 * `Exposed Felix Console` - exposed Felix Console might lead to RCE by uploading backdoor OSGI bundle.
 * `Enabled WCMDebugFilter` - vulnerable to CVE-2016-7882 WCMDebugFilter might lead to reflected XSS.

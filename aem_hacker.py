@@ -18,6 +18,9 @@ import requests
 requests.packages.urllib3.disable_warnings()
 
 
+CREDS = ('admin:admin', 'author:author', 'replication-receiver:replication-receiver', 'vgnadmin:vgnadmin', 'aparker@geometrixx.info:aparker', 'jdoe@geometrixx.info:jdoe')
+
+
 def random_string(len=10):
     return ''.join([choice(ascii_letters) for _ in range(len)])
 
@@ -362,9 +365,6 @@ def create_new_nodes(base_url, my_host, debug=False, proxy=None):
 
 @register
 def exposed_loginstatus_servlet(base_url, my_host, debug=False, proxy=None):
-    CREDS = ('admin:admin', 'author:author', 'replication-receiver:replication-receiver', 'vgnadmin:vgnadmin',
-             'aparker@geometrixx.info:aparker', 'jdoe@geometrixx.info:jdoe')
-
     LOGINSTATUS = itertools.product(('/system/sling/loginstatus', '///system///sling///loginstatus'),
                                     ('.json', '.css', '.ico', '.png', '.gif', '.html', '.js', '.json/a.1.json',
                                      '.json;%0aa.css', '.json;%0aa.html', '.json;%0aa.js', '.json;%0aa.png',
@@ -399,6 +399,81 @@ def exposed_loginstatus_servlet(base_url, my_host, debug=False, proxy=None):
 
     return results
 
+
+@register
+def exposed_currentuser_servlet(base_url, my_host, debug=False, proxy=None):
+    CURRENTUSER = itertools.product(('/libs/granite/security/currentuser', '///libs///granite///security///currentuser'),
+                                    ('.json', '.css', '.ico', '.png', '.gif', '.html', '.js', '.json?a.css', '.json/a.1.json',
+                                     '.json;%0aa.css', '.json;%0aa.html', '.json;%0aa.js', '.json;%0aa.png',
+                                     '.json;%0aa.ico', '.4.2.1...json'))
+    CURRENTUSER = list('{0}{1}'.format(p1, p2) for p1, p2 in CURRENTUSER)
+
+    results = []
+    for path in CURRENTUSER:
+        url = normalize_url(base_url, path)
+        try:
+            resp = http_request(url, proxy=proxy)
+
+            if resp.status_code == 200 and 'authorizableId' in str(resp.content):
+                f = Finding('CurrentUserServlet', url,
+                    'CurrentUserServlet is exposed, it allows to bruteforce credentials. '
+                    'You can get valid usernames from jcr:createdBy, jcr:lastModifiedBy, cq:LastModifiedBy attributes of any JCR node.')
+                results.append(f)
+
+                for creds in CREDS:
+                    headers = {'Authorization': 'Basic {}'.format(base64.b64encode(creds.encode()).decode())}
+                    resp = http_request(url, additional_headers=headers, proxy=proxy)
+
+                    if 'anonymous' not in str(resp.content):
+                        f = Finding('AEM with default credentials', url,
+                                    'AEM with default credentials "{0}".'.format(creds))
+                        results.append(f)
+
+                break
+        except:
+            if debug:
+                error('Exception while performing a check', check='exposed_currentuser_servlet', url=url)
+
+    return results
+
+
+@register
+def exposed_userinfo_servlet(base_url, my_host, debug=False, proxy=None):
+    USERINFO = itertools.product(('/libs/cq/security/userinfo', '///libs///cq///security///userinfo'),
+                                    ('.json', '.css', '.ico', '.png', '.gif', '.html', '.js', '.json?a.css', '.json/a.1.json',
+                                     '.json;%0aa.css', '.json;%0aa.html', '.json;%0aa.js', '.json;%0aa.png',
+                                     '.json;%0aa.ico', '.4.2.1...json'))
+
+    USERINFO = list('{0}{1}'.format(p1, p2) for p1, p2 in USERINFO)
+
+    results = []
+    for path in USERINFO:
+        url = normalize_url(base_url, path)
+        try:
+            resp = http_request(url, proxy=proxy)
+
+            if resp.status_code == 200 and 'userID' in str(resp.content):
+                f = Finding('UserInfoServlet', url,
+                    'UserInfoServlet is exposed, it allows to bruteforce credentials. '
+                    'You can get valid usernames from jcr:createdBy, jcr:lastModifiedBy, cq:LastModifiedBy attributes of any JCR node.')
+                results.append(f)
+
+                for creds in CREDS:
+                    headers = {'Authorization': 'Basic {}'.format(base64.b64encode(creds.encode()).decode())}
+                    resp = http_request(url, additional_headers=headers, proxy=proxy)
+
+                    if 'anonymous' not in str(resp.content):
+                        f = Finding('AEM with default credentials', url,
+                                    'AEM with default credentials "{0}".'.format(creds))
+                        results.append(f)
+
+                break
+        except:
+            if debug:
+                error('Exception while performing a check', check='exposed_userinfo_servlet', url=url)
+
+    return results
+    
 
 @register
 def exposed_felix_console(base_url, my_host, debug=False, proxy=None):
