@@ -302,6 +302,7 @@ def exposed_post_servlet(base_url, my_host, debug=False, proxy=None):
             resp = http_request(url, 'POST', data=data, additional_headers=headers, proxy=proxy)
 
             if resp.status_code == 200 and 'Null Operation Status:' in str(resp.content):
+                # TODO: Matt will add more details on how to exploit
                 f = Finding('POSTServlet', url,
                             'POSTServlet is exposed, persistent XSS or RCE might be possible, it depends on your privileges.')
                 results.append(f)
