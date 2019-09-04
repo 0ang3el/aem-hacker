@@ -69,6 +69,8 @@ optional arguments:
                      detection
   --port PORT        opens port for SSRF detection
   --workers WORKERS  number of parallel workers
+  -H [HEADER [HEADER ...]], --header [HEADER [HEADER ...]]
+                     extra http headers to attach
 ```
 
 #### Usage
