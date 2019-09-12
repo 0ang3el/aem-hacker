@@ -18,16 +18,24 @@ import requests
 requests.packages.urllib3.disable_warnings()
 
 
-CREDS = ('admin:admin', 'author:author', 'replication-receiver:replication-receiver', 'vgnadmin:vgnadmin', 'aparker@geometrixx.info:aparker', 'jdoe@geometrixx.info:jdoe')
+CREDS = (
+    'admin:admin',
+    'author:author',
+    'replication-receiver:replication-receiver',
+    'vgnadmin:vgnadmin',
+    'aparker@geometrixx.info:aparker',
+    'jdoe@geometrixx.info:jdoe'
+)
 
 
-def random_string(len=10):
-    return ''.join([choice(ascii_letters) for _ in range(len)])
+def random_string(length=10):
+    return ''.join([choice(ascii_letters) for _ in range(length)])
 
 
 registered = []  # Registered checks
 token = random_string()  # Token to recognize SSRF was triggered
 d = {}  # store SSRF detections
+extra_headers = {}
 
 
 class Detector(BaseHTTPRequestHandler):
@@ -46,7 +54,7 @@ class Detector(BaseHTTPRequestHandler):
         self.serve()
 
     def do_PUT(self):
-        self.serve
+        self.serve()
 
     def serve(self):
         try:
@@ -102,35 +110,51 @@ def error(message, **kwargs):
     print('\n\n\n', sys.stderr)
 
 
-def http_request(url, method='GET', data=None, additional_headers=None, proxy=None):
+def http_request(url, method='GET', data=None, additional_headers=None, proxy=None, debug=False):
     headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:45.0) Gecko/20100101 Firefox/45.0'}
     if additional_headers:
         headers.update(additional_headers)
+    if extra_headers:
+        headers.update(extra_headers)
 
     if not proxy:
         proxy = {}
+
+    if debug:
+        print('>> Sending {} {}'.format(method, url))
 
     resp = requests.request(method, url, data=data, headers=headers, proxies=proxy, verify=False, timeout=40, allow_redirects=False)
 
+    if debug:
+        print('<< Received HTTP-{}', resp.status_code)
+
     return resp
 
 
-def http_request_multipart(url, method='POST', data=None, additional_headers=None, proxy=None):
+def http_request_multipart(url, method='POST', data=None, additional_headers=None, proxy=None, debug=False):
     headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:45.0) Gecko/20100101 Firefox/45.0'}
     if additional_headers:
         headers.update(additional_headers)
+    if extra_headers:
+        headers.update(extra_headers)
 
     if not proxy:
         proxy = {}
 
+    if debug:
+        print('>> Sending {} {}'.format(method, url))
+
     resp = requests.request(method, url, files=data, headers=headers, proxies=proxy, verify=False, timeout=40, allow_redirects=False)
+
+    if debug:
+        print('<< Received HTTP-{}', resp.status_code)
 
     return resp
 
 
-def preflight(url, proxy=None):
+def preflight(url, proxy=None, debug=False):
     try:
-        http_request(url, proxy=proxy)
+        http_request(url, proxy=proxy, debug=debug)
     except:
         return False
     else:
@@ -151,7 +175,7 @@ def exposed_get_servlet(base_url, my_host, debug=False, proxy=None):
         url = normalize_url(base_url, path)
 
         try:
-            resp = http_request(url, proxy=proxy)
+            resp = http_request(url, proxy=proxy, debug=debug)
 
             if resp.status_code == 200:
                 try:
@@ -192,7 +216,7 @@ def exposed_querybuilder_servlet(base_url, my_host, debug=False, proxy=None):
 
         url = normalize_url(base_url, path)
         try:
-            resp = http_request(url, proxy=proxy)
+            resp = http_request(url, proxy=proxy, debug=debug)
 
             if resp.status_code == 200:
                 try:
@@ -264,7 +288,7 @@ def exposed_gql_servlet(base_url, my_host, debug=False, proxy=None):
     for path in GQLSERVLET:
         url = normalize_url(base_url, path)
         try:
-            resp = http_request(url, proxy=proxy)
+            resp = http_request(url, proxy=proxy, debug=debug)
 
             if resp.status_code == 200:
                 try:
@@ -299,7 +323,7 @@ def exposed_post_servlet(base_url, my_host, debug=False, proxy=None):
         try:
             data = ':operation=nop'
             headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url}
-            resp = http_request(url, 'POST', data=data, additional_headers=headers, proxy=proxy)
+            resp = http_request(url, 'POST', data=data, additional_headers=headers, proxy=proxy, debug=debug)
 
             if resp.status_code == 200 and 'Null Operation Status:' in str(resp.content):
                 f = Finding('POSTServlet', url,
@@ -330,7 +354,7 @@ def create_new_nodes(base_url, my_host, debug=False, proxy=None):
         url = normalize_url(base_url, path)
         try:
             headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url}
-            resp = http_request(url, 'POST', additional_headers=headers, proxy=proxy)
+            resp = http_request(url, 'POST', additional_headers=headers, proxy=proxy, debug=debug)
 
             if resp.status_code == 200 and '<td>Parent Location</td>' in str(resp.content):
                 f = Finding('CreateJCRNodes', url,
@@ -348,7 +372,7 @@ def create_new_nodes(base_url, my_host, debug=False, proxy=None):
         try:
             headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url,
                        'Authorization': 'Basic {}'.format(base64.b64encode(creds.encode()).decode())}
-            resp = http_request(url, 'POST', additional_headers=headers, proxy=proxy)
+            resp = http_request(url, 'POST', additional_headers=headers, proxy=proxy, debug=debug)
 
             if resp.status_code == 200 and '<td>Parent Location</td>' in str(resp.content):
                 f = Finding('CreateJCRNodes', url,
@@ -375,7 +399,7 @@ def exposed_loginstatus_servlet(base_url, my_host, debug=False, proxy=None):
     for path in LOGINSTATUS:
         url = normalize_url(base_url, path)
         try:
-            resp = http_request(url, proxy=proxy)
+            resp = http_request(url, proxy=proxy, debug=debug)
 
             if resp.status_code == 200 and 'authenticated=' in str(resp.content):
                 f = Finding('LoginStatusServlet', url,
@@ -385,7 +409,7 @@ def exposed_loginstatus_servlet(base_url, my_host, debug=False, proxy=None):
 
                 for creds in CREDS:
                     headers = {'Authorization': 'Basic {}'.format(base64.b64encode(creds.encode()).decode())}
-                    resp = http_request(url, additional_headers=headers, proxy=proxy)
+                    resp = http_request(url, additional_headers=headers, proxy=proxy, debug=debug)
 
                     if 'authenticated=true' in str(resp.content):
                         f = Finding('AEM with default credentials', url,
@@ -412,7 +436,7 @@ def exposed_currentuser_servlet(base_url, my_host, debug=False, proxy=None):
     for path in CURRENTUSER:
         url = normalize_url(base_url, path)
         try:
-            resp = http_request(url, proxy=proxy)
+            resp = http_request(url, proxy=proxy, debug=debug)
 
             if resp.status_code == 200 and 'authorizableId' in str(resp.content):
                 f = Finding('CurrentUserServlet', url,
@@ -422,7 +446,7 @@ def exposed_currentuser_servlet(base_url, my_host, debug=False, proxy=None):
 
                 for creds in CREDS:
                     headers = {'Authorization': 'Basic {}'.format(base64.b64encode(creds.encode()).decode())}
-                    resp = http_request(url, additional_headers=headers, proxy=proxy)
+                    resp = http_request(url, additional_headers=headers, proxy=proxy, debug=debug)
 
                     if 'anonymous' not in str(resp.content):
                         f = Finding('AEM with default credentials', url,
@@ -450,7 +474,7 @@ def exposed_userinfo_servlet(base_url, my_host, debug=False, proxy=None):
     for path in USERINFO:
         url = normalize_url(base_url, path)
         try:
-            resp = http_request(url, proxy=proxy)
+            resp = http_request(url, proxy=proxy, debug=debug)
 
             if resp.status_code == 200 and 'userID' in str(resp.content):
                 f = Finding('UserInfoServlet', url,
@@ -460,7 +484,7 @@ def exposed_userinfo_servlet(base_url, my_host, debug=False, proxy=None):
 
                 for creds in CREDS:
                     headers = {'Authorization': 'Basic {}'.format(base64.b64encode(creds.encode()).decode())}
-                    resp = http_request(url, additional_headers=headers, proxy=proxy)
+                    resp = http_request(url, additional_headers=headers, proxy=proxy, debug=debug)
 
                     if 'anonymous' not in str(resp.content):
                         f = Finding('AEM with default credentials', url,
@@ -488,7 +512,7 @@ def exposed_felix_console(base_url, my_host, debug=False, proxy=None):
         url = normalize_url(base_url, path)
         headers = {'Authorization': 'Basic YWRtaW46YWRtaW4='}
         try:
-            resp = http_request(url, additional_headers=headers, proxy=proxy)
+            resp = http_request(url, additional_headers=headers, proxy=proxy, debug=debug)
 
             if resp.status_code == 200 and 'Web Console - Bundles' in str(resp.content):
                 f = Finding('FelixConsole', url,
@@ -517,7 +541,7 @@ def exposed_wcmdebug_filter(base_url, my_host, debug=False, proxy=None):
     for path in WCMDEBUG:
         url = normalize_url(base_url, path)
         try:
-            resp = http_request(url, proxy=proxy)
+            resp = http_request(url, proxy=proxy, debug=debug)
 
             if resp.status_code == 200 and 'res=' in str(resp.content) and 'sel=' in str(resp.content):
                 f = Finding('WCMDebugFilter', url,
@@ -547,7 +571,7 @@ def exposed_wcmsuggestions_servlet(base_url, my_host, debug=False, proxy=None):
     for path in WCMSUGGESTIONS:
         url = normalize_url(base_url, path)
         try:
-            resp = http_request(url, proxy=proxy)
+            resp = http_request(url, proxy=proxy, debug=debug)
 
             if resp.status_code == 200 and '<1337abcdef>' in str(resp.content):
                 f = Finding('WCMSuggestionsServlet', url,
@@ -574,7 +598,7 @@ def exposed_auditlog_servlet(base_url, my_host, debug=False, proxy=None):
     for path in AUDITLOG:
         url = normalize_url(base_url, path)
         try:
-            resp = http_request(url, proxy=proxy)
+            resp = http_request(url, proxy=proxy, debug=debug)
 
             if resp.status_code == 200:
                 try:
@@ -608,7 +632,7 @@ def exposed_crxde_logs(base_url, my_host, debug=False, proxy=None):
     for path in CRXDELOGS:
         url = normalize_url(base_url, path)
         try:
-            resp = http_request(url, proxy=proxy)
+            resp = http_request(url, proxy=proxy, debug=debug)
 
             if resp.status_code == 200 and ('*WARN*' in str(resp.content) or '*INFO*' in str(resp.content)):
 
@@ -660,10 +684,10 @@ def exposed_crxde_crx(base_url, my_host, debug=False, proxy=None):
     for path in itertools.chain(CRXDELITE, CRX, CRXSEARCH, CRXNAMESPACE, PACKMGR):
         url = normalize_url(base_url, path)
         try:
-            resp = http_request(url, proxy=proxy)
+            resp = http_request(url, proxy=proxy, debug=debug)
 
             if resp.status_code == 200 and ('CRXDE Lite' in str(resp.content) or 'Content Explorer' in str(resp.content) or
-                                            'CRX Package Manager' in str(resp.content) or 'Search for:' in str(res.content) or
+                                            'CRX Package Manager' in str(resp.content) or 'Search for:' in str(resp.content) or
                                             'Namespace URI' in str(resp.content)) :
                 f = Finding('CRXDE Lite/CRX', url, 'Sensitive information might be exposed. Check manually.')
 
@@ -688,7 +712,7 @@ def exposed_reports(base_url, my_host, debug=False, proxy=None):
     for path in DISKUSAGE:
         url = normalize_url(base_url, path)
         try:
-            resp = http_request(url, proxy=proxy)
+            resp = http_request(url, proxy=proxy, debug=debug)
 
             if resp.status_code == 200 and ('Disk Usage' in str(resp.content)):
 
@@ -759,7 +783,7 @@ def ssrf_salesforcesecret_servlet(base_url, my_host, debug=False, proxy=None):
         url = url.format(back_url)
 
         try:
-            http_request(url, proxy=proxy)
+            http_request(url, proxy=proxy, debug=debug)
         except:
             if debug:
                 error('Exception while performing a check', check='ssrf_salesforcesecret_servlet', url=url)
@@ -859,7 +883,7 @@ def ssrf_reportingservices_servlet(base_url, my_host, debug=False, proxy=None):
         url = url.format(back_url)
 
         try:
-            http_request(url, proxy=proxy)
+            http_request(url, proxy=proxy, debug=debug)
         except:
             if debug:
                 error('Exception while performing a check', check='ssrf_reportingservices_servlet', url=url)
@@ -965,7 +989,7 @@ def ssrf_sitecatalyst_servlet(base_url, my_host, debug=False, proxy=None):
         url = url.format(back_url)
 
         try:
-            http_request(url, proxy=proxy)
+            http_request(url, proxy=proxy, debug=debug)
         except:
             if debug:
                 error('Exception while performing a check', check='ssrf_sitecatalyst_servlet', url=url)
@@ -1036,7 +1060,7 @@ def ssrf_autoprovisioning_servlet(base_url, my_host, debug=False, proxy=None):
         headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url}
 
         try:
-            http_request(url, 'POST', data=data, additional_headers=headers, proxy=proxy)
+            http_request(url, 'POST', data=data, additional_headers=headers, proxy=proxy, debug=debug)
         except:
             if debug:
                 error('Exception while performing a check', check='ssrf_autoprovisioning_servlet', url=url)
@@ -1103,7 +1127,7 @@ def ssrf_opensocial_proxy(base_url, my_host, debug=False, proxy=None):
         url = url.format(back_url)
 
         try:
-            http_request(url, proxy=proxy)
+            http_request(url, proxy=proxy, debug=debug)
         except:
             if debug:
                 error('Exception while performing a check', check='ssrf_opensocial_proxy', url=url)
@@ -1172,7 +1196,7 @@ def ssrf_opensocial_makeRequest(base_url, my_host, debug=False, proxy=None):
         try:
             headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url}
             data = 'httpMethod=GET'
-            http_request(url, 'POST', data=data, additional_headers=headers, proxy=proxy)
+            http_request(url, 'POST', data=data, additional_headers=headers, proxy=proxy, debug=debug)
         except:
             if debug:
                 error('Exception while performing a check', check='ssrf_opensocial_makeRequest', url=url)
@@ -1214,7 +1238,7 @@ def swf_xss(base_url, my_host, debug=False, proxy=None):
     for path in SWFS:
         url = normalize_url(base_url, path)
         try:
-            resp = http_request(url, proxy=proxy)
+            resp = http_request(url, proxy=proxy, debug=debug)
 
             ct = content_type(resp.headers.get('Content-Type', ''))
             cd = resp.headers.get('Content-Disposition', '')
@@ -1247,7 +1271,7 @@ def deser_externaljob_servlet(base_url, my_host, debug=False, proxy=None):
         data = {':operation': ('', 'job'), 'file': ('jobevent', DESERPAYLOAD, 'application/octet-stream')}
         headers = {'Referer': base_url}
         try:
-            resp = http_request_multipart(url, data=data, additional_headers=headers, proxy=proxy)
+            resp = http_request_multipart(url, data=data, additional_headers=headers, proxy=proxy, debug=debug)
 
             if resp.status_code == 500 and 'Java heap space' in str(resp.content):
                 f = Finding('ExternalJobServlet', url,
@@ -1275,7 +1299,7 @@ def exposed_webdav(base_url, my_host, debug=False, proxy=None):
     for path in WEBDAV:
         try:
             url = normalize_url(base_url, path)
-            resp = http_request(url, proxy=proxy)
+            resp = http_request(url, proxy=proxy, debug=debug)
             www_authenticate = resp.headers.get('WWW-Authenticate', '').lower()
             if resp.status_code == 401 and 'webdav' in www_authenticate:
                 f = Finding('WebDAV exposed', url,
@@ -1324,7 +1348,7 @@ def exposed_groovy_console(base_url, my_host, debug=False, proxy=None):
         data = 'script={}'.format(SCRIPT)
         headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url}
         try:
-            resp = http_request(url, 'POST', data=data, additional_headers=headers, proxy=proxy)
+            resp = http_request(url, 'POST', data=data, additional_headers=headers, proxy=proxy, debug=debug)
 
             f = Finding('GroovyConsole', url, 'Groovy console is exposed, RCE is possible. '
                                               'See - https://github.com/OlsonDigital/aem-groovy-console')
@@ -1349,7 +1373,7 @@ def exposed_groovy_console(base_url, my_host, debug=False, proxy=None):
     for path in GROOVYAUDIT:
         url = normalize_url(base_url, path)
         try:
-            resp = http_request(url, proxy=proxy)
+            resp = http_request(url, proxy=proxy, debug=debug)
 
             if resp.status_code == 200:
                 try:
@@ -1387,7 +1411,7 @@ def exposed_acs_tools(base_url, my_host, debug=False, proxy=None):
         url = normalize_url(base_url, path)
         headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url,  'Authorization': 'Basic YWRtaW46YWRtaW4='}
         try:
-            resp = http_request(url, 'POST', data=DATA, additional_headers=headers, proxy=proxy)
+            resp = http_request(url, 'POST', data=DATA, additional_headers=headers, proxy=proxy, debug=debug)
 
             if resp.status_code == 200 and 'abcdef31337' in str(resp.content):
                 f = Finding('ACSTools', url, 'ACS Tools Fiddle is exposed, RCE is possible. '
@@ -1402,7 +1426,7 @@ def exposed_acs_tools(base_url, my_host, debug=False, proxy=None):
     for path in PREDICATES:
         url = normalize_url(base_url, path)
         try:
-            resp = http_request(url, proxy=proxy)
+            resp = http_request(url, proxy=proxy, debug=debug)
 
             if resp.status_code == 200 and 'relativedaterange' in str(resp.content):
                 f = Finding('ACSTools', url, 'ACS Tools predicates. '
@@ -1426,6 +1450,7 @@ def parse_args():
     parser.add_argument('--host', help='hostname or IP to use for back connections during SSRF detection')
     parser.add_argument('--port', type=int, default=80, help='opens port for SSRF detection')
     parser.add_argument('--workers', type=int, default=3, help='number of parallel workers')
+    parser.add_argument('-H', '--header', nargs='*', help='extra http headers to attach')
 
     return parser.parse_args(sys.argv[1:])
 
@@ -1443,6 +1468,8 @@ def run_detector(port):  # Run SSRF detector in separate thread
 
 
 def main():
+    global extra_headers
+
     args = parse_args()
 
     if args.proxy:
@@ -1450,6 +1477,13 @@ def main():
         proxy = {'http': p, 'https': p}
     else:
         proxy = {}
+
+    if args.header:
+        for header in args.header:
+            header_data = header.split(':')
+            extra_headers[header_data[0].strip()] = header_data[1].strip()
+    else:
+        extra_headers = {}
 
     if not args.url:
         print('You must specify the -u parameter, bye.')
