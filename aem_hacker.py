@@ -115,7 +115,14 @@ def http_request(url, method='GET', data=None, additional_headers=None, proxy=No
     if additional_headers:
         headers.update(additional_headers)
     if extra_headers:
-        headers.update(extra_headers)
+        
+        headers.update({ 
+            # Retrieve the headers configured as extra headers but not controlled
+            # by the application in this specific request
+            h_name: h_value 
+            for h_name, h_value in extra_headers.items()
+            if h_name not in headers
+            })
 
     if not proxy:
         proxy = {}
@@ -136,11 +143,17 @@ def http_request_multipart(url, method='POST', data=None, additional_headers=Non
     if additional_headers:
         headers.update(additional_headers)
     if extra_headers:
-        headers.update(extra_headers)
+        headers.update({ 
+            # Retrieve the headers configured as extra headers but not controlled
+            # by the application in this specific request
+            h_name: h_value 
+            for h_name, h_value in extra_headers.items()
+            if h_name not in headers
+            })
 
     if not proxy:
         proxy = {}
-
+    
     if debug:
         print('>> Sending {} {}'.format(method, url))
 
