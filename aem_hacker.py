@@ -110,7 +110,7 @@ def error(message, **kwargs):
     print('\n\n\n', sys.stderr)
 
 
-def http_request(url, method='GET', data=None, additional_headers=None, proxy=None, debug=False):  
+def http_request(url, method='GET', data=None, additional_headers=None, proxy=None, debug=False):
     headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:45.0) Gecko/20100101 Firefox/45.0'}
     if additional_headers:
         headers.update(additional_headers)
