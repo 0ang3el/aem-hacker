@@ -111,7 +111,7 @@ def error(message, **kwargs):
 
 
 def http_request(url, method='GET', data=None, additional_headers=None, proxy=None, debug=False):
-    headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:45.0) Gecko/20100101 Firefox/45.0'}
+    headers = {'User-Agent': 'curl/7.30.0'}
     if additional_headers:
         headers.update(additional_headers)
     if extra_headers:
@@ -139,7 +139,7 @@ def http_request(url, method='GET', data=None, additional_headers=None, proxy=No
 
 
 def http_request_multipart(url, method='POST', data=None, additional_headers=None, proxy=None, debug=False):
-    headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:45.0) Gecko/20100101 Firefox/45.0'}
+    headers = {'User-Agent': 'curl/7.30.0'}
     if additional_headers:
         headers.update(additional_headers)
     if extra_headers:
@@ -366,7 +366,7 @@ def create_new_nodes(base_url, my_host, debug=False, proxy=None):
     for path in POSTSERVLET:
         url = normalize_url(base_url, path)
         try:
-            headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url}
+            headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url, 'User-Agent':'curl/7.30.0'}
             resp = http_request(url, 'POST', additional_headers=headers, proxy=proxy, debug=debug)
 
             if resp.status_code == 200 and '<td>Parent Location</td>' in str(resp.content):
