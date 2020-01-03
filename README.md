@@ -48,6 +48,8 @@ Following checks are currently implemented:
 * `Exposed Groovy Console` - exposed Groovy console leads to RCE. 
 * `Exposed ACS AEM Tools` - exposed ACS AEM Tools leads to RCE.
 * `Exposed GuideInternalSubmitServlet` - exposed GuideInternalSubmitServlet vulnerable to XXE (CVE-2019-8086).
+* `Exposed MergeMetadataServlet` - might be vulnerable to reflected XSS.
+* `Exposed SetPreferences page` - might be vulnerable to reflected XSS.
 
 #### Help
 ```

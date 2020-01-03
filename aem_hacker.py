@@ -181,14 +181,14 @@ def preflight(url, proxy=None, debug=False):
 def exposed_set_preferences(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
-    MERGEMETADATA = itertools.product(('/crx/de/setPreferences.jsp', '///crx///de///setPreferences.jsp'),
+    SETPREFERENCES = itertools.product(('/crx/de/setPreferences.jsp', '///crx///de///setPreferences.jsp'),
                                    (';%0a{0}.html', '/{0}.html'),
                                    ('?keymap=<1337>&language=0',))
-    MERGEMETADATA = list('{0}{1}{2}'.format(p1, p2.format(r), p3) for p1, p2, p3 in MERGEMETADATA)
+    SETPREFERENCES = list('{0}{1}{2}'.format(p1, p2.format(r), p3) for p1, p2, p3 in SETPREFERENCES)
 
     results = []
 
-    for path in MERGEMETADATA:
+    for path in SETPREFERENCES:
         url = normalize_url(base_url, path)
 
         try:
