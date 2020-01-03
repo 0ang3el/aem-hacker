@@ -45,7 +45,7 @@ def normalize_url(base_url, path):
 
 
 def http_request(url, method='GET', data=None, additional_headers=None, proxy=None):
-    headers = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:45.0) Gecko/20100101 Firefox/45.0'}
+    headers = {'User-Agent': 'curl/7.30.0'}
     if additional_headers:
         headers.update(additional_headers)
 
@@ -78,11 +78,27 @@ def by_login_page(base_url, debug, proxy=None):
     try:
         resp = http_request(url, proxy=proxy)
 
-        if resp.status_code == 200 and 'Welcome to Adobe Experience Manager' in resp.content:
+        if resp.status_code == 200 and 'Welcome to Adobe Experience Manager' in str(resp.content):
             return True
     except:
         if debug:
             error('Exception', method='by_login_page', url=url)
+
+
+@register
+def by_csrf_token(base_url, debug, proxy=None):
+    CSRF_TOKEN = '/libs/granite/csrf/token.json'
+    url = normalize_url(base_url, CSRF_TOKEN)
+
+    try:
+        resp = http_request(url, proxy=proxy)
+
+        ct = content_type(resp.headers.get('Content-Type', ''))
+        if resp.status_code == 200 and ct == 'application/json' and '"token"' in str(resp.content):
+            return True
+    except:
+        if debug:
+            error('Exception', method='by_csrf_token', url=url)
 
 
 @register
@@ -93,7 +109,7 @@ def by_geometrixx_page(base_url, debug, proxy=None):
     try:
         resp = http_request(url, proxy=proxy)
 
-        if resp.status_code == 200 and 'Geometrixx has been selling' in resp.content:
+        if resp.status_code == 200 and 'Geometrixx has been selling' in str(resp.content):
             return True
     except:
         if debug:
@@ -102,10 +118,15 @@ def by_geometrixx_page(base_url, debug, proxy=None):
 
 @register
 def by_get_servlet(base_url, debug, proxy=None):
-    GETSERVLET = itertools.product(('/', '/content', '/content/dam', '/bin', '///bin'),
-                                   ('.json', '.1.json', '.childrenlist.json', '.ext.json', '.4.2.1...json', '.json/a.css',
-                                    '.json/a.html', '.json/a.png', '.json/a.ico', '.json;%0aa.css', '.json;%0aa.html',
-                                    '.json;%0aa.png', '.json;%0aa.ico'))
+    GETSERVLET = itertools.product(('/', '/content', '/content/dam', '/bin', '/etc', '/var'),
+                                   ('.json', '.1.json', '.childrenlist.json', '.childrenlist.html', '.ext.json',
+                                    '.children.json', '...4.2.1...json', '.json/a.css', '.json/a.html', '.json/a.png',
+                                    '.json/a.ico', '.json;%0aa.css', '.json;%0aa.html', '.json;%0aa.png',
+                                    '.json;%0aa.ico', '.json?a.css', '.json?a.ico', '.json?a.html', '.ext.json/a.css',
+                                    '.ext.json/a.html', '.ext.json/a.ico', '.ext.json;%0aa.css', '.ext.json;%0aa.ico',
+                                    '.ext.json;%0aa.html', '.children.json/a.css', '.children.json/a.html',
+                                    '.children.json/a.ico', '.children.json;%0aa.css', '.children.json;%0aa.ico',
+                                    '.children.json;%0aa.html'))
     GETSERVLET = list('{0}{1}'.format(p1, p2) for p1, p2 in GETSERVLET)
 
     for path in GETSERVLET:
@@ -115,6 +136,12 @@ def by_get_servlet(base_url, debug, proxy=None):
             resp = http_request(url, proxy=proxy)
 
             if resp.status_code == 200:
+                if '"jcr:primaryType":' in str(resp.content):
+                    return True
+
+                if 'data-coral-columnview-path' in str(resp.content):
+                    return True
+
                 try:
                     json.loads(resp.content.decode())['jcr:primaryType']
                 except:
@@ -146,7 +173,7 @@ def by_get_servlet(base_url, debug, proxy=None):
 @register
 def by_bin_receive(base_url, debug, proxy=None):
     BINRECEIVE = itertools.product(('/bin/receive{0}?sling:authRequestLogin=1', '/bin/receive.servlet{0}?sling:authRequestLogin=1'),
-                                   ('.css', '.html', '.js', '.ico', '.png', '.gif', '.1.json', '.4.2.1...json'))
+                                   ('.css', '.html', '.js', '.ico', '.png', '.gif', '.1.json', '...4.2.1...json'))
     BINRECEIVE = list(p1.format(p2) for p1, p2 in BINRECEIVE)
 
     for path in BINRECEIVE:
@@ -178,7 +205,7 @@ def by_loginstatus_servlet(base_url, debug, proxy=None):
         try:
             resp = http_request(url, proxy=proxy)
 
-            if resp.status_code == 200 and 'authenticated=' in resp.content:
+            if resp.status_code == 200 and 'authenticated=' in str(resp.content):
                 return True
         except:
             if debug:
@@ -200,7 +227,7 @@ def by_bgtest_servlet(base_url, debug, proxy=None):
         try:
             resp = http_request(url, proxy=proxy)
 
-            if resp.status_code == 200 and 'All done.' in resp.content and 'Cycle' in resp.content:
+            if resp.status_code == 200 and 'All done.' in str(resp.content) and 'Cycle' in str(resp.content):
                 return True
         except:
             if debug:
@@ -212,7 +239,8 @@ def by_bgtest_servlet(base_url, debug, proxy=None):
 @register
 def by_crx(base_url, debug, proxy=None):
     CRX = itertools.product(('/crx/de/index.jsp', '/crx/explorer/browser/index.jsp', '/crx/packmgr/index.jsp'),
-                            ('', ';%0aa.css', ';%0aa.html', ';%0aa.ico', ';%0aa.png', '?a.css', '?a.html', '?a.png', '?a.ico'))
+                            ('', ';%0aa.css', ';%0aa.html', ';%0aa.ico', ';%0aa.png', '?a.css', '?a.html',
+                             '?a.png', '?a.ico', '/a.html', '/a.css', '/a.js', '/a.ico', '/a.png'))
     CRX = list('{0}{1}'.format(p1, p2) for p1, p2 in CRX)
 
     for path in CRX:
@@ -221,8 +249,8 @@ def by_crx(base_url, debug, proxy=None):
         try:
             resp = http_request(url, proxy=proxy)
 
-            if resp.status_code == 200 and ('CRXDE Lite' in resp.content or 'Content Explorer' in resp.content or
-                                            'CRX Package Manager' in resp.content):
+            if resp.status_code == 200 and ('CRXDE Lite' in str(resp.content) or 'Content Explorer' in str(resp.content) or
+                                            'CRX Package Manager' in str(resp.content)):
                 return True
         except:
             if debug:
@@ -285,6 +313,75 @@ def by_gql_servlet(base_url, debug, proxy=None):
 
 
 @register
+def by_css_js(base_url, debug, proxy=None):
+    CSSJS = ('/etc/clientlibs/wcm/foundation/main.css',
+             '/etc/clientlibs/social/connect.js',
+             '/etc/clientlibs/foundation/main.css',
+             '/etc/clientlibs/mobile/user.js',
+             '/etc/clientlibs/screens/player/bootloader/js/bootloader.js',
+             '/system/sling.js')
+
+    for path in CSSJS:
+        url = normalize_url(base_url, path)
+
+        try:
+            resp = http_request(url, proxy=proxy)
+
+            if resp.status_code == 200 and ('ADOBE CONFIDENTIAL' in str(resp.content) or 'JCR repository' in str(resp.content)):
+                return True
+        except:
+            if debug:
+                error('Exception', method='by_css_js', url=url)
+
+    return False
+
+
+@register
+def by_siren_api(base_url, debug, proxy=None):
+    SIREN = itertools.product(('/api/content.json', ),
+                              ('', '.css', '.js', '.ico', '.png', '/test.css', '/test.html', '/test.ico', '/test.1.json',
+                               '/test...4.2.1...json', ';%0a.css', ';%0aa.html', ';%0aa.ico', '?a.css', '?a.html', '?a.ico'))
+
+    for path in SIREN:
+        url = normalize_url(base_url, path)
+
+        try:
+            resp = http_request(url, proxy=proxy)
+
+            if resp.status_code == 200 and '"links":' in str(resp.content):
+                return True
+        except:
+            if debug:
+                error('Exception', method='by_siren_api', url=url)
+
+    return False
+
+
+@register
+def by_post_servlet(base_url, debug, proxy=None):
+    POSTSERVLET = itertools.product(('/', '/content', '/content/dam'),
+                                    ('.json', '.1.json', '.json/a.css', '.json/a.html', '.json/a.ico', '.json/a.png',
+                                     '.json/a.gif', '.json/a.1.json', '.json;%0aa.css', '.json;%0aa.html', '.json;%0aa.js',
+                                     '.json;%0aa.png', '.json;%0aa.ico', '...4.2.1...json', '?a.ico', '?a.html', '?a.css', '?a.png'))
+    POSTSERVLET = list('{0}{1}'.format(p1, p2) for p1, p2 in POSTSERVLET)
+
+    for path in POSTSERVLET:
+        url = normalize_url(base_url, path)
+        try:
+            data = ':operation=nop'
+            headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url}
+            resp = http_request(url, 'POST', data=data, additional_headers=headers, proxy=proxy)
+
+            if resp.status_code == 200 and ('Null Operation Status:' in str(resp.content) or 'Parent Location' in str(resp.content)):
+                return True
+        except:
+            if debug:
+                error('Exception', check='by_post_servlet', url=url)
+
+    return False
+
+
+#@register
 def by_swf(base_url, debug, proxy=None):
     SWFS = (
         '/etc/clientlibs/foundation/video/swf/player_flv_maxi.swf',

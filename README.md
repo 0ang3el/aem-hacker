@@ -1,10 +1,10 @@
-# AEM hacker toolset
+# Toolset for AEM hacking
 
-Tools to identify vulnerable Adobe Experience Manager (AEM) webapps. AEM is an enterprise-grade CMS.
+Tools to identify vulnerable Adobe Experience Manager (AEM) webapps. <a href="https://www.adobe.com/marketing/experience-manager.html">AEM is an enterprise-grade CMS</a>.
 
-I built these tools to automate bughunting and pentesting of AEM webapps. I included checks for previously known vulnerabilities and misconfigurations, as well as for new ones, discovered by me in 2018. **All discovered vulnerabilities were responsibly reported to Adobe PSIRT**.
+I've built these tools to automate bughunting and pentesting of AEM webapps. I've included checks for previously known vulnerabilities and misconfigurations, as well as for new ones, discovered by me in 2018/2019. **All discovered vulnerabilities were responsibly reported to Adobe PSIRT**.
  
-You can find more details about vulnerabilities and techniques in presentations, I've prepared for <a href="https://speakerdeck.com/0ang3el/hunting-for-security-bugs-in-aem-webapps">Hacktivity conference</a> and LevelUp 0x03.
+You can find more details about vulnerabilities and techniques in presentations, I've prepared for <a href="https://speakerdeck.com/0ang3el/hunting-for-security-bugs-in-aem-webapps">Hacktivity conference</a> and <a href="https://www.youtube.com/watch?v=EQNBQCQMouk">LevelUp 0x03</a>.
 
 AEM webapps are widespread and rarely configured securely or kept up to date. Bughunter, you have good chances to find security bugs, enjoy the tools!
 
@@ -15,7 +15,6 @@ Mikhail Egorov (<a href="https://twitter.com/0ang3el">@0ang3el</a>)
 
 * `aem_hacker.py` - main script to scan AEM webapp for vulnerabilities.
 * `aem_discoverer.py` - script to discover AEM webapps from list of URLs.
-* `aem_enum.py` - script allows to automate enumeration of usernames and secrets through AEM's DefaultGetServlet.
 * `aem_ssrf2rce.py`, `aem_server.py`, `response.bin` - scripts to get RCE from SSRF.
 * `aem-rce-sling-script.sh` - script to get RCE by uploading JSP shell to /apps JCR node.
 
@@ -35,8 +34,6 @@ Following checks are currently implemented:
 * `Exposed Felix Console` - exposed Felix Console might lead to RCE by uploading backdoor OSGI bundle.
 * `Enabled WCMDebugFilter` - vulnerable to CVE-2016-7882 WCMDebugFilter might lead to reflected XSS.
 * `Exposed WCMSuggestionsServlet` - exposed WCMSuggestionsServlet might lead to reflected XSS.
-* `Exposed AuditlogServlet` - checks if audit logs are exposed without authorization.
-* `Exposed CRXDE logs` - checks if logs are exposed without authorization via CRXDE.
 * `Exposed CRXDE and CRX` - checks for exposure of CRXDE and CRX.
 * `Exposed Reports` - checks for exposure of reports.
 * `SSRF SalesforceSecretServlet` - checks for SSRF via SalesforceSecretServlet (CVE-2018-5006). SSRF might allow to ex-filtrate secrets or perform XSS.
@@ -50,6 +47,7 @@ Following checks are currently implemented:
 * `Exposed Webdav` - checks for access to JCR via WebDav protocol. Exposed WebDav might lead to XXE (CVE-2015-1833) or stored XSS.
 * `Exposed Groovy Console` - exposed Groovy console leads to RCE. 
 * `Exposed ACS AEM Tools` - exposed ACS AEM Tools leads to RCE.
+* `Exposed GuideInternalSubmitServlet` - exposed GuideInternalSubmitServlet vulnerable to XXE (CVE-2019-8086).
 
 #### Help
 ```
@@ -104,44 +102,6 @@ optional arguments:
 ```
 python3 aem_discoverer.py --file urls.txt --workers 150
 ```
-
-## aem_enum.py
-Script tries to grab usernames and secrets from JCR using AEM's DefaultGetServlet. Usernames are stored in properties of a node that ends with `By` (`jcr:createdBy`, `jcr:lastModifiedBy`, `cq:LastModifiedBy`, etc.).
-
-Tool tries to bypass AEM dispatcher.
-
-#### Help
-
-```
-python3 aem_enum.py -h
-usage: aem_enum.py [-h] [--url URL] [--base BASE] [--grabdepth GRABDEPTH]
-                   [--maxdepth MAXDEPTH] [--workers WORKERS] [--out OUT]
-                   [--proxy PROXY] [--debug]
-
-AEM exploration tool by @0ang3el (grabs users and secrets), see the slides -
-https://speakerdeck.com/0ang3el/hunting-for-security-bugs-in-aem-webapps
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --url URL             AEM webapp URL, required parameter
-  --base BASE           set base node (/etc or /apps or /home or /var), if not
-                        set, base node is selected automatically
-  --grabdepth GRABDEPTH
-                        JCR subtree depth on each iteration, 2 should be a
-                        safe value for all nodes
-  --maxdepth MAXDEPTH   maximum depth for JCR search, increase it to find more
-  --workers WORKERS     number of parallel workers
-  --out OUT             CSV file with results, delimiter symbol is |
-  --proxy PROXY         http and https proxy
-  --debug               debug output
-```
-
-#### Usage
-
-```
-python3 aem_enum.py --url https://aem.webapp --out results.csv
-```
-
 
 ## aem_ssrf2rce.py, aem_server.py, response.bin
 Helps to exploit SSRF in `SitecatalystServlet` and `AutoprovisioningServlet` as RCE. It should work on AEM before AEM-6.2-SP1-CFP7 running on Jetty (default installation).
