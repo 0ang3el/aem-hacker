@@ -35,7 +35,7 @@ def random_string(length=10):
     return ''.join([choice(ascii_letters) for _ in range(length)])
 
 
-registered = []  # Registered checks
+registered = {}  # Registered checks
 token = random_string()  # Token to recognize SSRF was triggered
 d = {}  # store SSRF detections
 extra_headers = {}
@@ -78,10 +78,12 @@ class Detector(BaseHTTPRequestHandler):
         self.send_response(200)
 
 
-def register(f):
-    registered.append(f)
+def register(name):
+    def decorator(func):
+        registered[name] = func
+        return func
 
-    return f
+    return decorator
 
 
 Finding = namedtuple('Finding', 'name, url, description')
@@ -177,7 +179,7 @@ def preflight(url, proxy=None, debug=False):
         return True
 
 
-@register
+@register('set_preferences')
 def exposed_set_preferences(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
@@ -208,7 +210,7 @@ def exposed_set_preferences(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('merge_metadata')
 def exposed_merge_metadata(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
@@ -244,7 +246,7 @@ def exposed_merge_metadata(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('get_servlet')
 def exposed_get_servlet(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
@@ -284,7 +286,7 @@ def exposed_get_servlet(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('querybuilder_servlet')
 def exposed_querybuilder_servlet(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
@@ -338,7 +340,7 @@ def exposed_querybuilder_servlet(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('gql_servlet')
 def exposed_gql_servlet(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
@@ -373,7 +375,7 @@ def exposed_gql_servlet(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('guide_internal_submit_servlet')
 def exposed_guide_internal_submit_servlet_xxe(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
@@ -431,7 +433,7 @@ def exposed_guide_internal_submit_servlet_xxe(base_url, my_host, debug=False, pr
     return results
 
 
-@register
+@register('post_servlet')
 def exposed_post_servlet(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
@@ -460,7 +462,7 @@ def exposed_post_servlet(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('create_new_nodes')
 def create_new_nodes(base_url, my_host, debug=False, proxy=None):
     CREDS = ('admin:admin', 'author:author')
 
@@ -524,7 +526,7 @@ def create_new_nodes(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('create_new_nodes2')
 def create_new_nodes2(base_url, my_host, debug=False, proxy=None):
     CREDS = ('author:author', 'grios:password', 'aparker@geometrixx.info:aparker', 'jdoe@geometrixx.info:jdoe',
              'james.devore@spambob.com:password', 'matt.monroe@mailinator.com:password',
@@ -565,7 +567,7 @@ def create_new_nodes2(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('loginstatus_servlet')
 def exposed_loginstatus_servlet(base_url, my_host, debug=False, proxy=None):
     global CREDS
 
@@ -605,7 +607,7 @@ def exposed_loginstatus_servlet(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-#@register
+#@register('currentuser_servlet')
 def exposed_currentuser_servlet(base_url, my_host, debug=False, proxy=None):
     global CREDS
 
@@ -645,7 +647,7 @@ def exposed_currentuser_servlet(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('userinfo_servlet')
 def exposed_userinfo_servlet(base_url, my_host, debug=False, proxy=None):
     global CREDS
 
@@ -687,7 +689,7 @@ def exposed_userinfo_servlet(base_url, my_host, debug=False, proxy=None):
     return results
     
 
-@register
+@register('felix_console')
 def exposed_felix_console(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
@@ -718,7 +720,7 @@ def exposed_felix_console(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('wcmdebug_filter')
 def exposed_wcmdebug_filter(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
@@ -748,7 +750,7 @@ def exposed_wcmdebug_filter(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('wcmsuggestions_servlet')
 def exposed_wcmsuggestions_servlet(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
@@ -779,7 +781,7 @@ def exposed_wcmsuggestions_servlet(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('crxde_crx')
 def exposed_crxde_crx(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
@@ -831,7 +833,7 @@ def exposed_crxde_crx(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-#@register
+#@register('reports')
 def exposed_reports(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
@@ -858,7 +860,7 @@ def exposed_reports(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('salesforcesecret_servlet')
 def ssrf_salesforcesecret_servlet(base_url, my_host, debug=False, proxy=None):
     global token, d
 
@@ -932,7 +934,7 @@ def ssrf_salesforcesecret_servlet(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('reportingservices_servlet')
 def ssrf_reportingservices_servlet(base_url, my_host, debug=False, proxy=None):
     global token, d
 
@@ -1032,7 +1034,7 @@ def ssrf_reportingservices_servlet(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('sitecatalyst_servlet')
 def ssrf_sitecatalyst_servlet(base_url, my_host, debug=False, proxy=None):
     global token, d
 
@@ -1138,7 +1140,7 @@ def ssrf_sitecatalyst_servlet(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('autoprovisioning_servlet')
 def ssrf_autoprovisioning_servlet(base_url, my_host, debug=False, proxy=None):
     global token, d
 
@@ -1209,7 +1211,7 @@ def ssrf_autoprovisioning_servlet(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('opensocial_proxy')
 def ssrf_opensocial_proxy(base_url, my_host, debug=False, proxy=None):
     global token, d
 
@@ -1276,7 +1278,7 @@ def ssrf_opensocial_proxy(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('opensocial_makeRequest')
 def ssrf_opensocial_makeRequest(base_url, my_host, debug=False, proxy=None):
     global token, d
 
@@ -1344,7 +1346,7 @@ def ssrf_opensocial_makeRequest(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('swf_xss')
 def swf_xss(base_url, my_host, debug=False, proxy=None):
     SWFS = (
         '/etc/clientlibs/foundation/video/swf/player_flv_maxi.swf?onclick=javascript:confirm(document.domain)',
@@ -1386,7 +1388,7 @@ def swf_xss(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('externaljob_servlet')
 def deser_externaljob_servlet(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
@@ -1420,7 +1422,7 @@ def deser_externaljob_servlet(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('webdav')
 def exposed_webdav(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
@@ -1452,7 +1454,7 @@ def exposed_webdav(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('groovy_console')
 def exposed_groovy_console(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
@@ -1524,7 +1526,7 @@ def exposed_groovy_console(base_url, my_host, debug=False, proxy=None):
     return results
 
 
-@register
+@register('acs_tools')
 def exposed_acs_tools(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
@@ -1582,6 +1584,8 @@ def parse_args():
     parser.add_argument('--port', type=int, default=80, help='opens port for SSRF detection')
     parser.add_argument('--workers', type=int, default=3, help='number of parallel workers')
     parser.add_argument('-H', '--header', nargs='*', help='extra http headers to attach')
+    parser.add_argument('--handler', action='append', help='run specific handlers, if omitted run all handlers')
+    parser.add_argument('--listhandlers', action='store_true', help='list available handlers')
 
     return parser.parse_args(sys.argv[1:])
 
@@ -1603,6 +1607,10 @@ def main():
     global extra_headers
 
     args = parse_args()
+
+    if args.listhandlers:
+        print('[*] Available handlers: {0}'.format(list(registered.keys())))
+        sys.exit(1337)
 
     if args.proxy:
         p = args.proxy
@@ -1631,9 +1639,18 @@ def main():
 
     httpd = run_detector(args.port)
 
+    handlers_to_run = registered.values()
+    if args.handler:
+        handlers_to_run = []
+
+        for name in args.handler:
+            handler_func = registered.get(name)
+            if handler_func:
+                handlers_to_run.append(handler_func)
+
     with concurrent.futures.ThreadPoolExecutor(args.workers) as tpe:
         futures = []
-        for check in registered:
+        for check in handlers_to_run:
             my_host = '{0}:{1}'.format(args.host, args.port)
             futures.append(tpe.submit(check, args.url, my_host, args.debug, proxy))
 

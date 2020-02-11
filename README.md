@@ -53,29 +53,39 @@ Following checks are currently implemented:
 
 #### Help
 ```
-python3 aem_hacker.py -h
 usage: aem_hacker.py [-h] [-u URL] [--proxy PROXY] [--debug] [--host HOST]
                      [--port PORT] [--workers WORKERS]
+                     [-H [HEADER [HEADER ...]]] [--handler HANDLER]
+                     [--listhandlers]
 
 AEM hacker by @0ang3el, see the slides -
 https://speakerdeck.com/0ang3el/hunting-for-security-bugs-in-aem-webapps
 
 optional arguments:
-  -h, --help         show this help message and exit
-  -u URL, --url URL  url to scan
-  --proxy PROXY      http and https proxy
-  --debug            debug output
-  --host HOST        hostname or IP to use for back connections during SSRF
-                     detection
-  --port PORT        opens port for SSRF detection
-  --workers WORKERS  number of parallel workers
+  -h, --help            show this help message and exit
+  -u URL, --url URL     url to scan
+  --proxy PROXY         http and https proxy
+  --debug               debug output
+  --host HOST           hostname or IP to use for back connections during SSRF
+                        detection
+  --port PORT           opens port for SSRF detection
+  --workers WORKERS     number of parallel workers
   -H [HEADER [HEADER ...]], --header [HEADER [HEADER ...]]
-                     extra http headers to attach
+                        extra http headers to attach
+  --handler HANDLER     run specific handlers, if omitted run all handlers
+  --listhandlers        list available handlers
 ```
 
 #### Usage
 ```
 python3 aem_hacker.py -u https://aem.webapp --host your_vps_hostname_ip
+```
+
+or
+
+```
+python3 aem_hacker.py -u https://aem.webapp --host your_vps_hostname_ip --handler groovy_console --handler salesforcesecret_servlet
+
 ```
 
 ## aem_discoverer.py
