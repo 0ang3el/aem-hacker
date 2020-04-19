@@ -341,7 +341,8 @@ def by_siren_api(base_url, debug, proxy=None):
     SIREN = itertools.product(('/api/content.json', ),
                               ('', '.css', '.js', '.ico', '.png', '/test.css', '/test.html', '/test.ico', '/test.1.json',
                                '/test...4.2.1...json', ';%0a.css', ';%0aa.html', ';%0aa.ico', '?a.css', '?a.html', '?a.ico'))
-
+    SIREN = list('{0}{1}'.format(p1, p2) for p1, p2 in SIREN)
+    
     for path in SIREN:
         url = normalize_url(base_url, path)
 
