@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
@@ -37,12 +38,15 @@ class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
 
 
 def run():
-    print('starting fake AEM server...')
-
-    server_address = ('0.0.0.0', 80)
-    httpd = HTTPServer(server_address, testHTTPServer_RequestHandler)
-    print('running server...')
-    httpd.serve_forever()
+    print('starting fake AEM server on port 8080...')
+    try:
+        server_address = ('0.0.0.0', 8080)
+        httpd = HTTPServer(server_address, testHTTPServer_RequestHandler)
+        print('running server...')
+        httpd.serve_forever()
+    except Exception as ERR:
+        print (f" ERROR : Failed to start HTTP server, \n {ERR}")
+        exit()
 
 
 if __name__ == '__main__':
