@@ -62,7 +62,7 @@ class Detector(BaseHTTPRequestHandler):
         return
 
     def do_GET(self):
-        self.sere()
+        self.serve()
 
     def do_POST(self):
         self.serve()
