@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import concurrent.futures
 import itertools
 import json
@@ -13,7 +14,13 @@ from random import choice, randint
 from string import ascii_letters
 from threading import Thread
 
-import requests
+import requests, os
+
+try:
+    # Import URLIB
+    from urllib.parse import urlparse
+except Exception as ERR:
+    print(ERR)
 
 requests.packages.urllib3.disable_warnings()
 
@@ -40,6 +47,10 @@ token = random_string()  # Token to recognize SSRF was triggered
 d = {}  # store SSRF detections
 extra_headers = {}
 
+# Function to print in Color
+def Err(Var): print("\033[1;41m\033[93m  {} \033[00m \n" .format(Var))  # Yellow on Red
+def Warn(Var): print("\033[1;44m\033[93m  {} \033[00m \n" .format(Var)) # Yellow on Black
+def Info(Var): print("\033[1;44m\033[32m  {} \033[00m \n" .format(Var)) # Green on Black
 
 class Detector(BaseHTTPRequestHandler):
     def __init__(self, token, d, *args):
@@ -51,7 +62,7 @@ class Detector(BaseHTTPRequestHandler):
         return
 
     def do_GET(self):
-        self.serve()
+        self.sere()
 
     def do_POST(self):
         self.serve()
@@ -1576,13 +1587,14 @@ def exposed_acs_tools(base_url, my_host, debug=False, proxy=None):
 
 def parse_args():
     parser = argparse.ArgumentParser(description='AEM hacker by @0ang3el, see the slides - https://speakerdeck.com/0ang3el/hunting-for-security-bugs-in-aem-webapps')
-
-    parser.add_argument('-u', '--url', help='url to scan')
+    # URL defined as required so basic help printed and example
+    parser.add_argument('-u', '--url', help='URL to scan eg: http://example.com', required=True)
     parser.add_argument('--proxy', help='http and https proxy')
     parser.add_argument('--debug', action='store_true', help='debug output')
-    parser.add_argument('--host', help='hostname or IP to use for back connections during SSRF detection')
-    parser.add_argument('--port', type=int, default=80, help='opens port for SSRF detection')
-    parser.add_argument('--workers', type=int, default=3, help='number of parallel workers')
+    parser.add_argument('--host', default="127.0.0.1" , help='hostname or IP to use for back connections during SSRF detection')
+    # Default port to 8080 to avoid conflict with loacl Webserver
+    parser.add_argument('--port', type=int, default=8080, help='opens port for SSRF detection')
+    parser.add_argument('--workers', type=int, default=10, help='number of parallel workers')
     parser.add_argument('-H', '--header', nargs='*', help='extra http headers to attach')
     parser.add_argument('--handler', action='append', help='run specific handlers, if omitted run all handlers')
     parser.add_argument('--listhandlers', action='store_true', help='list available handlers')
@@ -1592,20 +1604,23 @@ def parse_args():
 
 def run_detector(port):  # Run SSRF detector in separate thread
     global token, d
+    try:
+        handler = lambda *args: Detector(token, d, *args)
+        httpd = HTTPServer(('', port), handler)
 
-    handler = lambda *args: Detector(token, d, *args)
-    httpd = HTTPServer(('', port), handler)
+        t = Thread(target=httpd.serve_forever)
+        t.daemon = True
+        t.start()
 
-    t = Thread(target=httpd.serve_forever)
-    t.daemon = True
-    t.start()
-
-    return httpd
+        return httpd
+    except Exception as ERR:
+        # Exception if port conflicts
+        print(f" ERROR: Failed to start HTTP server on port {port}. Please ensure port is available. \n {ERR}")
+        exit()
 
 
 def main():
-    global extra_headers
-
+    global extra_headers, NOTE
     args = parse_args()
 
     if args.listhandlers:
@@ -1626,18 +1641,38 @@ def main():
         extra_headers = {}
 
     if not args.url:
-        print('You must specify the -u parameter, bye.')
+        print('You must specify the -u parameter, or -h for help. Bye.')
         sys.exit(1337)
 
     if not args.host:
         print('You must specify the --host parameter, bye.')
         sys.exit(1337)
 
-    if not preflight(args.url, proxy):
+    if not preflight(args.url, proxy): 
         print('Seems that you provided bad URL. Try another one, bye.')
+        print("  Eg: ./aem_hacker.py -u http://example.com \n")
         sys.exit(1337)
 
-    httpd = run_detector(args.port)
+    try:
+        httpd = run_detector(args.port)
+    except Exception as ERR:
+        print(ERR)
+        exit()
+
+    print(f" INFO : Starting scan of {args.url} ")
+    global FName
+    try:
+        # Set filename with domain name 
+        F = urlparse(args.url)
+        FName = F.netloc + ".csv"
+        if os.path.exists(FName):
+            os.remove(FName)
+        # if existing file, ensure to remove
+    except:
+        # Continue on exception
+        pass
+
+
 
     handlers_to_run = registered.values()
     if args.handler:
@@ -1651,17 +1686,39 @@ def main():
     with concurrent.futures.ThreadPoolExecutor(args.workers) as tpe:
         futures = []
         for check in handlers_to_run:
+            # print(f"doing {check} ")
             my_host = '{0}:{1}'.format(args.host, args.port)
             futures.append(tpe.submit(check, args.url, my_host, args.debug, proxy))
 
         for future in concurrent.futures.as_completed(futures):
-            for finding in future.result():
-                print('[+] New Finding!!!')
+            for finding in future.result(): 
+                # Adjusted printing in Red
+                Err('Failure Detected!!')
                 print('\tName: {}'.format(finding.name))
                 print('\tUrl: {}'.format(finding.url))
                 print('\tDescription: {}\n\n'.format(finding.description))
+                # Write to a file in csv format
+                with open(FName, 'a+') as FILE:
+                    FILE.write(f"{finding.name},{finding.url},{finding.description} \n ")
+                    # FILE.write ("Testing")
+                FILE.close()
+            
+
+            # Info(f" INFO: Result saved in {FName}")
+
 
     httpd.shutdown()
+
+    
+    try:
+        # Print Finish statement
+        print( f" INFO: Finished scan of {args.url} \n" )
+        if os.path.exists(FName):
+            # Print file name with summary
+            Warn(f"INFO: Result saved in {FName} ")
+    except:
+        pass
+
 
 
 if __name__ == '__main__':
