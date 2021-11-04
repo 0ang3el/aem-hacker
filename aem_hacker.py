@@ -116,29 +116,37 @@ def error(message, **kwargs):
 
 
 def http_request(url, method='GET', data=None, additional_headers=None, proxy=None, debug=False):
-    headers = {'User-Agent': 'curl/7.30.0'}
-    if additional_headers:
-        headers.update(additional_headers)
-    if extra_headers:
+
+    with requests.Session() as session:
+        headers = {'User-Agent': 'curl/7.30.0'}
+        if additional_headers:
+            headers.update(additional_headers)
+        if extra_headers:
         
-        headers.update({ 
-            # Retrieve the headers configured as extra headers but not controlled
-            # by the application in this specific request
-            h_name: h_value 
-            for h_name, h_value in extra_headers.items()
-            if h_name not in headers
+            headers.update({
+                # Retrieve the headers configured as extra headers but not controlled
+                # by the application in this specific request
+                h_name: h_value
+                for h_name, h_value in extra_headers.items()
+                if h_name not in headers
             })
 
-    if not proxy:
-        proxy = {}
+        if not proxy:
+            proxy = {}
 
-    if debug:
-        print('>> Sending {} {}'.format(method, url))
+        if debug:
+            print('>> Sending {} {}'.format(method, url))
 
-    resp = requests.request(method, url, data=data, headers=headers, proxies=proxy, verify=False, timeout=40, allow_redirects=False)
+        session.get(url, verify=False, timeout=40, allow_redirects=False)
+        if method == 'GET':
+            resp = session.get(url, data=data, headers=headers, proxies=proxy, verify=False, timeout=40, allow_redirects=False)
+        elif method == 'POST':
+            resp = session.post(url, data=data, headers=headers, proxies=proxy, verify=False, timeout=40, allow_redirects=False)
+        else:
+            print(f'UNHANDLED METHOD {method}')
 
-    if debug:
-        print('<< Received HTTP-{}', resp.status_code)
+        if debug:
+            print('<< Received HTTP-{}', resp.status_code)
 
     return resp
 
