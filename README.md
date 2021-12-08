@@ -17,6 +17,7 @@ Mikhail Egorov (<a href="https://twitter.com/0ang3el">@0ang3el</a>)
 * `aem_discoverer.py` - script to discover AEM webapps from list of URLs.
 * `aem_ssrf2rce.py`, `aem_server.py`, `response.bin` - scripts to get RCE from SSRF.
 * `aem-rce-sling-script.sh` - script to get RCE by uploading JSP shell to /apps JCR node.
+* `aem_slurper.py` - crawl templates and HTML contents for test pages and internal user IDs.
 
 ## aem_hacker.py
 **Important:** You need a VPS to detect SSRF vulnerabilities!
@@ -51,7 +52,7 @@ Following checks are currently implemented:
 * `Exposed MergeMetadataServlet` - might be vulnerable to reflected XSS.
 * `Exposed SetPreferences page` - might be vulnerable to reflected XSS.
 
-#### Help
+#### Usage
 ```
 usage: aem_hacker.py [-h] [-u URL] [--proxy PROXY] [--debug] [--host HOST]
                      [--port PORT] [--workers WORKERS]
@@ -76,7 +77,7 @@ optional arguments:
   --listhandlers        list available handlers
 ```
 
-#### Usage
+#### Example
 ```
 python3 aem_hacker.py -u https://aem.webapp --host your_vps_hostname_ip
 ```
@@ -93,7 +94,7 @@ Script allows to scan urls and find AEM webapps among them.
 
 Tool tries to bypass AEM dispatcher.
 
-#### Help
+#### Usage
 ```
 python3 aem_discoverer.py -h
 usage: aem_discoverer.py [-h] [--file FILE] [--proxy PROXY] [--debug]
@@ -110,7 +111,7 @@ optional arguments:
   --workers WORKERS  number of parallel workers
 ```
 
-#### Usage
+#### Example
 ```
 python3 aem_discoverer.py --file urls.txt --workers 150
 ```
@@ -118,8 +119,10 @@ python3 aem_discoverer.py --file urls.txt --workers 150
 ## aem_ssrf2rce.py, aem_server.py, response.bin
 Helps to exploit SSRF in `SitecatalystServlet` and `AutoprovisioningServlet` as RCE. It should work on AEM before AEM-6.2-SP1-CFP7 running on Jetty (default installation).
 
-#### Help
+## aem_ssrf2rce.py
+A server-side request forgery for remote code execution.
 
+#### Usage
 ```
 python3 aem_ssrf2rce.py -h
 usage: aem_ssrf2rce.py [-h] [--url URL] [--fakeaem FAKEAEM] [--proxy PROXY]
@@ -132,7 +135,7 @@ optional arguments:
   --proxy PROXY      http and https proxy
 ```
 
-#### Usage
+#### Example
 Place `aem_server.py` and `response.bin` on your VPS. Run `aem_server.py` script.
 
 ```
@@ -158,3 +161,19 @@ Script is handy when Felix Console is not available, but you have permissions to
 ```
 ./aem-rce-sling-script.sh https://aem.webapp username password
 ```
+
+## aem_slurper.py
+Read the AEM data and HTML contents in an attempt to discover forgotten test pages, sensitive data, internal user IDs.
+
+#### Usage
+```
+python3 aem_slurper.py HOSTNAME [/PATH]
+```
+
+#### Example
+```
+time python3 aem_slurper.py HOST 2>&1 | tee HOST.txt
+sort -k3 HOST.txt > HOST-sorted-by-path.txt
+less HOST-sorted-by-path.txt
+```
+
