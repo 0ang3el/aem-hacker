@@ -191,7 +191,7 @@ def preflight(url, proxy=None, debug=False):
 def exposed_set_preferences(base_url, my_host, debug=False, proxy=None):
     r = random_string(3)
 
-    SETPREFERENCES = itertools.product(('/crx/de/setPreferences.jsp', '///crx///de///setPreferences.jsp'),
+    SETPREFERENCES = itertools.product(('/crx/de/setPreferences.jsp', '///crx///de///setPreferences.jsp', '..;/crx/de/setPreferences.jsp', '..;///crx///de///setPreferences.jsp'),
                                    (';%0a{0}.html', '/{0}.html'),
                                    ('?keymap=<1337>&language=0',))
     SETPREFERENCES = list('{0}{1}{2}'.format(p1, p2.format(r), p3) for p1, p2, p3 in SETPREFERENCES)
@@ -207,7 +207,7 @@ def exposed_set_preferences(base_url, my_host, debug=False, proxy=None):
             if resp.status_code == 400:
                 if '<1337>' in resp.content.decode():
                     f = Finding('SetPreferences', url,
-                                'Page setPreferences.jsp is exposed, XSS might be possible via keymap parameter.')
+                                'Page setPreferences.jsp is exposed, XSS might be possible via keymap parameter. If XSS is not exploitable, error injection is a possible finding as well')
 
                     results.append(f)
                     break
