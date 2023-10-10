@@ -1598,23 +1598,30 @@ def parse_args():
     return parser.parse_args(sys.argv[1:])
 
 
-def run_detector(port):  # Run SSRF detector in separate thread
+def run_detector(port):
     global token, d
 
-    handler = lambda *args: Detector(token, d, *args)
-    httpd = HTTPServer(('', port), handler)
+    handler = lambda *args: Detector(*args)
+    try:
+        httpd = HTTPServer(('localhost', port), handler)  # Use localhost to avoid permission issues
 
-    t = Thread(target=httpd.serve_forever)
-    t.daemon = True
-    t.start()
+        t = Thread(target=httpd.serve_forever)
+        t.daemon = True
+        t.start()
 
-    return httpd
-
+        return httpd
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
 
 def main():
     global extra_headers
 
     args = parse_args()
+
+    if args.port < 1024 and sys.platform.startswith('win'):
+        print("Please run the script as an administrator or choose a port above 1024.")
+        sys.exit(1)
 
     if args.listhandlers:
         print('[*] Available handlers: {0}'.format(list(registered.keys())))
@@ -1642,7 +1649,7 @@ def main():
         sys.exit(1337)
 
     if not preflight(args.url, proxy):
-        print('Seems that you provided bad URL. Try another one, bye.')
+        print('Seems that you provided a bad URL. Try another one, bye.')
         sys.exit(1337)
 
     httpd = run_detector(args.port)
@@ -1671,6 +1678,5 @@ def main():
 
     httpd.shutdown()
 
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
