@@ -1,4 +1,5 @@
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import argparse
 
 class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
 
@@ -36,14 +37,17 @@ class testHTTPServer_RequestHandler(BaseHTTPRequestHandler):
         return
 
 
-def run():
+def run(port=80):
     print('starting fake AEM server...')
 
-    server_address = ('0.0.0.0', 80)
+    server_address = ('0.0.0.0', port)
     httpd = HTTPServer(server_address, testHTTPServer_RequestHandler)
-    print('running server...')
+    print('running server on port {}'.format(port))
     httpd.serve_forever()
 
 
 if __name__ == '__main__':
-    run()
+    parser = argparse.ArgumentParser(description='Fake AEM server')
+    parser.add_argument('--port', type=int, default=80, help='port to listen on')
+    args = parser.parse_args()
+    run(args.port)
